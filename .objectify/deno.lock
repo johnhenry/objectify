@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:objectify@*": "0.2.1"
+  },
+  "npm": {
+    "objectify@0.2.1": {
+      "integrity": "sha512-EMNCjT9ZwkZiA4Gox5U8/Kyj77voOVyP9+6HEzsgHxrNZuO2NPdqXXZfZylHaJgaZWsc1FbXf43Fc2Vlcl2Zlg=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:objectify@*"
+    ]
+  }
+}
