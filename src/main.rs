@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
-use ulid::Ulid;
+use rand::Rng;
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ use ulid::Ulid;
         Every object is an append-only log of full JSON snapshots. \
         Objects can have an optional TypeScript or Python class that defines \
         typed state and callable methods.\n\n\
-        IDs are ULIDs. Any unique prefix resolves to the full ID — same model as git.\n\n\
+        IDs are random hex strings. Any unique prefix resolves to the full ID — same model as git.\n\n\
         Classes are .ts or .py files in .objectify/classes/. TypeScript runs under \
         Deno (sandboxed); Python runs under python3 (unsandboxed). \
         Both support async methods.",
@@ -59,7 +59,7 @@ enum Command {
 
     /// Create a new object and print its short ID
     ///
-    /// Every object gets a random ULID. The minimum unambiguous prefix (usually 4–8 chars)
+    /// Every object gets a random ID. The minimum unambiguous prefix (usually 4 chars)
     /// is printed — this is what you pass to all other commands.
     ///
     /// If --class is given, objectify looks for <ClassName>.ts or <ClassName>.py in
@@ -99,7 +99,7 @@ enum Command {
     /// Use `objectify gc` to bulk-delete expired objects instead.
     #[command(after_help = "EXAMPLES:\n  objectify destroy 3fa8")]
     Destroy {
-        /// ID prefix or full ULID of the object to delete
+        /// ID prefix or full ID of the object to delete
         #[arg(value_name = "ID")]
         id: String,
     },
@@ -110,7 +110,7 @@ enum Command {
     /// version count, creation timestamp, and expiry.
     #[command(after_help = "EXAMPLES:\n  objectify inspect 3fa8")]
     Inspect {
-        /// ID prefix or full ULID
+        /// ID prefix or full ID
         #[arg(value_name = "ID")]
         id: String,
     },
@@ -188,7 +188,7 @@ enum Command {
         objectify use 3fa8 help                          # list available methods",
     )]
     Use {
-        /// ID prefix or full ULID of the object
+        /// ID prefix or full ID of the object
         #[arg(value_name = "ID")]
         id: String,
 
@@ -203,7 +203,7 @@ enum Command {
     /// and how long ago it was written. When piped, outputs a JSON array.
     #[command(after_help = "EXAMPLES:\n  objectify log 3fa8\n  objectify log 3fa8 | jq '.[-1]'")]
     Log {
-        /// ID prefix or full ULID
+        /// ID prefix or full ID
         #[arg(value_name = "ID")]
         id: String,
     },
@@ -216,7 +216,7 @@ enum Command {
         objectify diff 3fa8 1 3    # what changed from v1 to v3\n  \
         objectify diff 3fa8 2 2    # empty diff (same version)")]
     Diff {
-        /// ID prefix or full ULID
+        /// ID prefix or full ID
         #[arg(value_name = "ID")]
         id: String,
 
@@ -237,7 +237,7 @@ enum Command {
         objectify rewind 3fa8 2    # restore to v2; new version is written\n  \
         objectify log 3fa8         # confirm the rewind appears in history")]
     Rewind {
-        /// ID prefix or full ULID
+        /// ID prefix or full ID
         #[arg(value_name = "ID")]
         id: String,
 
@@ -248,14 +248,14 @@ enum Command {
 
     /// Fork an object into a new independent object
     ///
-    /// Copies state (and class / description / schema) into a fresh object with a new ULID.
+    /// Copies state (and class / description / schema) into a fresh object with a new ID.
     /// After forking, mutations to either object do not affect the other.
     /// Use --at to fork from a specific version rather than the latest.
     #[command(after_help = "EXAMPLES:\n  \
         objectify fork 3fa8           # fork from latest state\n  \
         objectify fork 3fa8 --at=2   # fork from version 2")]
     Fork {
-        /// ID prefix or full ULID of the source object
+        /// ID prefix or full ID of the source object
         #[arg(value_name = "ID")]
         id: String,
 
@@ -426,14 +426,15 @@ fn init_schema(conn: &Connection) -> Result<()> {
 // ─── IDs ─────────────────────────────────────────────────────────────────────
 
 fn new_id() -> String {
-    Ulid::new().to_string()
+    let bytes: [u8; 16] = rand::rng().random();
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 fn resolve_id(conn: &Connection, prefix: &str) -> Result<String> {
-    let prefix_up = prefix.to_uppercase();
+    let prefix_lower = prefix.to_lowercase();
     let mut stmt = conn.prepare("SELECT id FROM objects WHERE id LIKE ?1 || '%'")?;
     let ids: Vec<String> = stmt
-        .query_map(params![prefix_up], |row| row.get(0))?
+        .query_map(params![prefix_lower], |row| row.get(0))?
         .collect::<rusqlite::Result<_>>()?;
     match ids.len() {
         0 => bail!("object not found: {}", prefix),
@@ -447,9 +448,9 @@ fn resolve_id(conn: &Connection, prefix: &str) -> Result<String> {
 
 /// Compute the minimum unique prefix for display (4-char minimum).
 fn display_id(conn: &Connection, full_id: &str) -> String {
-    let up = full_id.to_uppercase();
-    for len in 4..=up.len() {
-        let prefix = &up[..len];
+    let lower = full_id.to_lowercase();
+    for len in 4..=lower.len() {
+        let prefix = &lower[..len];
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM objects WHERE id LIKE ?1 || '%'",
@@ -458,10 +459,10 @@ fn display_id(conn: &Connection, full_id: &str) -> String {
             )
             .unwrap_or(2);
         if count == 1 {
-            return prefix.to_lowercase();
+            return prefix.to_string();
         }
     }
-    full_id.to_lowercase()
+    lower
 }
 
 // ─── TIME UTILITIES ──────────────────────────────────────────────────────────
@@ -2082,7 +2083,7 @@ mod tests {
         conn
     }
 
-    /// Insert an object row and a "create" event, returning the full ULID.
+    /// Insert an object row and a "create" event, returning the full ID.
     fn insert_obj(conn: &Connection, class: Option<&str>, description: Option<&str>) -> String {
         let id = new_id();
         let now = Utc::now().to_rfc3339();
@@ -2121,11 +2122,10 @@ mod tests {
     // ── new_id / resolve_id / display_id ─────────────────────────────────────
 
     #[test]
-    fn new_id_is_26_chars_uppercase_base32() {
+    fn new_id_is_32_char_lowercase_hex() {
         let id = new_id();
-        assert_eq!(id.len(), 26);
-        // ULID uses Crockford base32: 0-9 A-Z (no I L O U)
-        assert!(id.chars().all(|c| c.is_ascii_alphanumeric() && c.is_uppercase() || c.is_ascii_digit()));
+        assert_eq!(id.len(), 32);
+        assert!(id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
     }
 
     #[test]
@@ -2158,7 +2158,7 @@ mod tests {
     #[test]
     fn resolve_id_not_found() {
         let conn = mem_db();
-        let err = resolve_id(&conn, "ZZZZ").unwrap_err();
+        let err = resolve_id(&conn, "ffffffff").unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 
@@ -2166,8 +2166,8 @@ mod tests {
     fn resolve_id_ambiguous() {
         let conn = mem_db();
         // Force two objects with identical first 4 chars — achieved by inserting known IDs directly.
-        let id_a = "01AAAAAAAAAAAAAAAAAAAAAAAA".to_string();
-        let id_b = "01AAAABBBBBBBBBBBBBBBBBBBBB".to_string();
+        let id_a = "aabb0000000000000000000000000000".to_string();
+        let id_b = "aabb1111111111111111111111111111".to_string();
         let now = Utc::now().to_rfc3339();
         for id in [&id_a, &id_b] {
             conn.execute(
@@ -2175,7 +2175,7 @@ mod tests {
                 params![id, now],
             ).unwrap();
         }
-        let err = resolve_id(&conn, "01AAAA").unwrap_err();
+        let err = resolve_id(&conn, "aabb").unwrap_err();
         assert!(err.to_string().contains("ambiguous"));
     }
 
