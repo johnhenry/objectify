@@ -624,7 +624,15 @@ All fields are optional. Absent = denied. `true` grants the Deno wildcard for th
 | `run` | `true` \| `["binary", ...]` | Subprocess execution |
 | `sys` | `["osRelease", ...]` | System info |
 
-**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes.
+**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes. Because there is no permission model to opt into, objectify requires an explicit `--allow-unsandboxed-python` flag before it will execute a Python class at all — on `objectify create --class=<Name>` (schema extraction runs the file) and on `objectify use <id> --allow-unsandboxed-python <method>` (method calls). Omitting the flag fails fast with a clear error instead of silently running unrestricted code:
+
+```
+objectify create "tasks" --class=TaskList        # TypeScript — no flag needed
+objectify create "tasks" --class=PyTaskList --allow-unsandboxed-python
+objectify use 3fa8 --allow-unsandboxed-python addTask -p:title "write tests"
+```
+
+If you need real sandboxing for untrusted class code, prefer TypeScript classes — Python classes should only be used with code you trust as much as this binary itself.
 
 ### Path tokens
 
