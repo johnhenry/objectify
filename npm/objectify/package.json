@@ -1,0 +1,40 @@
+{
+  "name": "@johnhenry/objectify",
+  "version": "0.0.0",
+  "description": "Persistent, versioned JSON objects backed by SQLite — a stateful, agent-friendly CLI.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnhenry/objectify.git",
+    "directory": "npm/objectify"
+  },
+  "homepage": "https://opensource.johnhenry.me/objectify/",
+  "bugs": "https://github.com/johnhenry/objectify/issues",
+  "license": "MIT",
+  "keywords": [
+    "cli",
+    "sqlite",
+    "versioning",
+    "state",
+    "json",
+    "agents",
+    "rust"
+  ],
+  "bin": {
+    "objectify": "bin/objectify.js"
+  },
+  "files": ["bin"],
+  "os": ["darwin", "linux", "win32"],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@johnhenry/objectify-darwin-arm64": "0.0.0",
+    "@johnhenry/objectify-darwin-x64": "0.0.0",
+    "@johnhenry/objectify-linux-x64": "0.0.0",
+    "@johnhenry/objectify-linux-arm64": "0.0.0",
+    "@johnhenry/objectify-win32-x64": "0.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
