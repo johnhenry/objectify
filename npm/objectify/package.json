@@ -22,7 +22,7 @@
   "bin": {
     "objectify": "bin/objectify.js"
   },
-  "files": ["bin"],
+  "files": ["bin", "checksums.json"],
   "os": ["darwin", "linux", "win32"],
   "engines": {
     "node": ">=18"

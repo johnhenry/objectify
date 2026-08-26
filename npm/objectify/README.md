@@ -56,6 +56,21 @@ Linux `x64`/`arm64` builds target glibc; there is currently no separate
 `musl` build (e.g. for Alpine-based Docker images). If you need one, please
 open an issue.
 
+## Integrity
+
+Every package published from CI carries an [npm provenance
+attestation](https://docs.npmjs.com/generating-provenance-statements)
+(Sigstore-backed, tying the published package back to the exact GitHub
+Actions run, commit, and source repo that built it) — check with
+`npm audit signatures` after installing.
+
+On top of that, this package ships a `checksums.json` manifest pinning the
+expected SHA-256 of each platform binary for this version. Before executing
+anything, `bin/objectify.js` hashes the resolved binary and compares it
+against the pinned value, refusing to run on a mismatch. This is
+defense-in-depth on top of provenance, not a replacement for it — see
+[`bin/objectify.js`](./bin/objectify.js) (`verifyChecksum`) for details.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).

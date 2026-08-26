@@ -16,6 +16,13 @@ on:
     types: [published]
   workflow_dispatch:
 
+# id-token: write is required for `npm publish --provenance` (Sigstore-backed
+# build provenance attestation, tying each published package back to the
+# exact workflow run / commit / repo that built it via OIDC). See
+# https://docs.npmjs.com/generating-provenance-statements
+permissions:
+  contents: read
+
 jobs:
   build:
     name: build (${{ matrix.name }})
@@ -52,22 +59,32 @@ jobs:
       - name: cargo test --release
         run: cargo test --release --locked
 
-      - name: Stage binary for upload
+      - name: Stage binary + checksum for upload
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p staging
           cp "target/release/${{ matrix.binary }}" "staging/${{ matrix.binary }}"
+          # sha256sum is not available on macOS runners by default; shasum is.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "staging/${{ matrix.binary }}" | awk '{print $1}' > "staging/${{ matrix.binary }}.sha256"
+          else
+            shasum -a 256 "staging/${{ matrix.binary }}" | awk '{print $1}' > "staging/${{ matrix.binary }}.sha256"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: objectify-${{ matrix.name }}
-          path: staging/${{ matrix.binary }}
+          path: staging
           if-no-files-found: error
 
   publish-platform-packages:
     name: publish per-platform npm packages
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +96,38 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - name: Build checksums.json manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A BINARY_NAME=(
+            [darwin-arm64]=objectify
+            [darwin-x64]=objectify
+            [linux-x64]=objectify
+            [linux-arm64]=objectify
+            [win32-x64]=objectify.exe
+          )
+          {
+            echo "{"
+            first=true
+            for platform in "${!BINARY_NAME[@]}"; do
+              bin="${BINARY_NAME[$platform]}"
+              sum="$(cat "artifacts/objectify-${platform}/${bin}.sha256")"
+              $first || echo ","
+              first=false
+              printf '  "%s": "%s"' "${platform}" "${sum}"
+            done
+            echo ""
+            echo "}"
+          } > checksums.json
+          cat checksums.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums-manifest
+          path: checksums.json
+          if-no-files-found: error
 
       - name: Place binaries and publish each platform package
         shell: bash
@@ -98,7 +147,7 @@ jobs:
             cp "artifacts/objectify-${platform}/${bin}" "${dest}"
             chmod +x "${dest}" || true # chmod is a no-op/irrelevant for the .exe
             echo "Publishing @johnhenry/objectify-${platform}..."
-            (cd "npm/${platform}" && npm publish --access public)
+            (cd "npm/${platform}" && npm publish --access public --provenance)
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -107,6 +156,9 @@ jobs:
     name: publish @johnhenry/objectify
     needs: publish-platform-packages
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -115,8 +167,13 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: checksums-manifest
+          path: npm/objectify
+
       - name: Publish
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: npm/objectify
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
