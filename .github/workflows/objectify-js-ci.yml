@@ -1,0 +1,37 @@
+name: objectify-js CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/objectify-js/**"
+      - ".github/workflows/objectify-js-ci.yml"
+  pull_request:
+    paths:
+      - "packages/objectify-js/**"
+      - ".github/workflows/objectify-js-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      # Run from the workspace root against the root package-lock.json —
+      # objectify-js is an npm workspace member, not a standalone package.
+      - name: Install
+        run: npm ci --workspace @johnhenry/objectify-js
+
+      - name: Build
+        run: npm run build --workspace @johnhenry/objectify-js
+
+      - name: Test
+        run: npm test --workspace @johnhenry/objectify-js
