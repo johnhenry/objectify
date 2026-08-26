@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 .objectify/objectify.db
 .objectify/deno.lock
+
+# JS/TS build output and dependency trees (npm workspaces root).
+node_modules/
+dist/
+.turbo/
