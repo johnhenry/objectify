@@ -13,3 +13,8 @@ __pycache__/
 /npm/linux-arm64/bin/*
 /npm/linux-x64/bin/*
 /npm/win32-x64/bin/*
+
+# JS/TS build output and dependency trees (npm workspaces root).
+node_modules/
+dist/
+.turbo/

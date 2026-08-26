@@ -1,0 +1,15 @@
+{
+  "name": "objectify-monorepo",
+  "private": true,
+  "description": "Workspace root for objectify's npm-side packages (TypeScript adapter + binary distribution). The CLI itself is a Rust crate built with cargo, not npm — see Cargo.toml.",
+  "packageManager": "npm@10.0.0",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run build && npm test --workspace @johnhenry/objectify-js",
+    "pack:dry-run": "npm pack --dry-run --workspaces"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}
