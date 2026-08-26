@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { Objectify } from './objectify.js';
+import { openDb } from './db.js';
 
 function withStore(fn: (store: Objectify) => void): void {
   const dir = mkdtempSync(join(tmpdir(), 'objectify-js-test-'));
@@ -121,5 +123,85 @@ test('destroy removes an object permanently', () => {
     const id = store.create();
     store.destroy(id);
     assert.throws(() => store.use(id), /object not found/);
+  });
+});
+
+// ── schema compatibility ───────────────────────────────────────────────────
+
+function withTmpDb(fn: (dbPath: string) => void): void {
+  const dir = mkdtempSync(join(tmpdir(), 'objectify-js-schema-test-'));
+  const dbPath = join(dir, 'objectify.db');
+  try {
+    fn(dbPath);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('openDb accepts a fresh (nonexistent) database file', () => {
+  withTmpDb((dbPath) => {
+    const db = openDb(dbPath);
+    assert.doesNotThrow(() => db.prepare('SELECT COUNT(*) FROM objects').get());
+    db.close();
+  });
+});
+
+test('openDb accepts a pre-existing, correctly-shaped database (e.g. from the Rust CLI, which never sets user_version)', () => {
+  withTmpDb((dbPath) => {
+    // Simulate a store created by the Rust CLI: correct tables/columns, but
+    // user_version left at its SQLite default of 0.
+    const seed = new Database(dbPath);
+    seed.exec(`
+      CREATE TABLE objects (
+        id TEXT PRIMARY KEY, class TEXT, description TEXT, schema TEXT,
+        created_at TEXT NOT NULL, expires_at TEXT
+      );
+      CREATE TABLE events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        object_id TEXT NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL, method TEXT NOT NULL, state TEXT NOT NULL,
+        created_at TEXT NOT NULL, UNIQUE(object_id, version)
+      );
+    `);
+    seed.close();
+
+    assert.doesNotThrow(() => {
+      const db = openDb(dbPath);
+      db.close();
+    });
+  });
+});
+
+test('openDb rejects a SQLite file with an unrelated schema (same table name, different shape)', () => {
+  withTmpDb((dbPath) => {
+    const seed = new Database(dbPath);
+    // A table named "objects" that has nothing to do with objectify's schema.
+    seed.exec('CREATE TABLE objects (name TEXT, price REAL);');
+    seed.close();
+
+    assert.throws(() => openDb(dbPath), /incompatible objectify database/);
+  });
+});
+
+test('openDb rejects a database with a mismatched schema version', () => {
+  withTmpDb((dbPath) => {
+    const seed = new Database(dbPath);
+    seed.exec(`
+      CREATE TABLE objects (
+        id TEXT PRIMARY KEY, class TEXT, description TEXT, schema TEXT,
+        created_at TEXT NOT NULL, expires_at TEXT
+      );
+      CREATE TABLE events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        object_id TEXT NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL, method TEXT NOT NULL, state TEXT NOT NULL,
+        created_at TEXT NOT NULL, UNIQUE(object_id, version)
+      );
+    `);
+    // A future/foreign schema version this code doesn't know how to handle.
+    seed.pragma('user_version = 99');
+    seed.close();
+
+    assert.throws(() => openDb(dbPath), /incompatible objectify database/);
   });
 });
