@@ -16,12 +16,14 @@ jobs:
             os: ubuntu-latest
           - name: linux-arm64
             os: ubuntu-24.04-arm
-          - name: macos-arm64
-            os: macos-14
-          - name: macos-x64
-            os: macos-13
           - name: windows-x64
             os: windows-latest
+        # macOS intentionally excluded from per-PR CI: hosted macOS runners
+        # are the scarcest/slowest to schedule, and release.yml already
+        # builds + tests both macOS targets for real at release time (it's
+        # producing the actual distributable binaries there anyway), so
+        # macOS correctness isn't left unverified -- it's just not gating
+        # every push/PR.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
