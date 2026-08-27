@@ -28,7 +28,20 @@ objectify log 3fa8
 
 ## Installation
 
-Requires [Rust](https://rustup.rs) 1.70+.
+The easiest way, if you have Node.js 18+:
+
+```sh
+npm install -g @johnhenry/objectify
+# or run it without installing:
+npx @johnhenry/objectify --help
+```
+
+This installs a small platform-detection shim plus a prebuilt binary for
+your OS/architecture — no Rust toolchain required. See
+[`npm/objectify/README.md`](./npm/objectify/README.md) for how this works and
+which platforms currently ship a prebuilt binary.
+
+Or build from source, if you have [Rust](https://rustup.rs) 1.70+:
 
 ```sh
 git clone <repo>
@@ -611,7 +624,15 @@ All fields are optional. Absent = denied. `true` grants the Deno wildcard for th
 | `run` | `true` \| `["binary", ...]` | Subprocess execution |
 | `sys` | `["osRelease", ...]` | System info |
 
-**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes.
+**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes. Because there is no permission model to opt into, objectify requires an explicit `--allow-unsandboxed-python` flag before it will execute a Python class at all — on `objectify create --class=<Name>` (schema extraction runs the file) and on `objectify use <id> --allow-unsandboxed-python <method>` (method calls). Omitting the flag fails fast with a clear error instead of silently running unrestricted code:
+
+```
+objectify create "tasks" --class=TaskList        # TypeScript — no flag needed
+objectify create "tasks" --class=PyTaskList --allow-unsandboxed-python
+objectify use 3fa8 --allow-unsandboxed-python addTask -p:title "write tests"
+```
+
+If you need real sandboxing for untrusted class code, prefer TypeScript classes — Python classes should only be used with code you trust as much as this binary itself.
 
 ### Path tokens
 

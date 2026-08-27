@@ -1,14 +1,22 @@
-# objectify-js
+# @johnhenry/objectify-js
 
 TypeScript adapter for [objectify](../../README.md) — persistent, versioned JSON objects backed by SQLite.
 
 Talks directly to the same SQLite database as the `objectify` CLI. No shelling out, no server process. Use it to give your Node.js apps versioned, typed state — or as the state layer behind an RPC framework like [oRPC](https://orpc.dev/).
 
+> **Provenance:** this package was previously an internal, unpublished
+> package (`objectify-js@0.1.0`, workspace-local only — it never had a
+> version on the npm registry). It is being published for the first time
+> as `@johnhenry/objectify-js`, restarting at `0.0.0` per the
+> [`@johnhenry` adoption convention](https://opensource.johnhenry.me/).
+
 ## Installation
 
 ```sh
-npm install objectify-js
+npm install @johnhenry/objectify-js
 ```
+
+Requires Node.js 22+ (matches [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3)'s minimum supported version — its N-API prebuilds are what let this package install without a native compiler toolchain).
 
 Requires an initialized objectify store. If you haven't already:
 
@@ -23,7 +31,7 @@ objectify init
 ## Quick start
 
 ```ts
-import { Objectify } from 'objectify-js';
+import { Objectify } from '@johnhenry/objectify-js';
 
 const store = new Objectify(); // auto-finds .objectify/ walking up from cwd
 
@@ -152,7 +160,7 @@ objectify-js is a natural fit as the state layer behind [oRPC](https://orpc.dev/
 ### Basic setup
 
 ```ts
-import { Objectify } from 'objectify-js';
+import { Objectify } from '@johnhenry/objectify-js';
 import { os } from '@orpc/server';
 import { z } from 'zod';
 

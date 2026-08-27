@@ -1,23 +1,35 @@
 {
-  "name": "objectify-js",
-  "version": "0.1.0",
+  "name": "@johnhenry/objectify-js",
+  "version": "0.0.0",
   "description": "TypeScript adapter for objectify — persistent, versioned JSON objects backed by SQLite",
   "type": "module",
   "exports": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": ["dist", "!dist/**/*.test.js", "!dist/**/*.test.d.ts"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnhenry/objectify.git",
+    "directory": "packages/objectify-js"
+  },
+  "homepage": "https://opensource.johnhenry.me/objectify/",
+  "bugs": "https://github.com/johnhenry/objectify/issues",
   "scripts": {
     "build": "tsc",
+    "pretest": "npm run build",
+    "test": "node --test dist/objectify.test.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^13.0.0",
     "ajv": "^8.0.0",
     "fast-json-patch": "^3.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.0.0",
+    "@types/better-sqlite3": "^9.0.0",
     "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "license": "MIT"
 }

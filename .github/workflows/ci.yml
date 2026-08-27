@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+          - name: windows-x64
+            os: windows-latest
+        # macOS intentionally excluded from per-PR CI: hosted macOS runners
+        # are the scarcest/slowest to schedule, and release.yml already
+        # builds + tests both macOS targets for real at release time (it's
+        # producing the actual distributable binaries there anyway), so
+        # macOS correctness isn't left unverified -- it's just not gating
+        # every push/PR.
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo build --release
+        run: cargo build --release --locked
+
+      - name: cargo test --release
+        run: cargo test --release --locked

@@ -1,0 +1,40 @@
+name: objectify-js Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # id-token: write is required for `npm publish --provenance` (Sigstore-backed
+    # build provenance attestation). See https://docs.npmjs.com/generating-provenance-statements
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: npm ci --workspace @johnhenry/objectify-js
+
+      - name: Build
+        run: npm run build --workspace @johnhenry/objectify-js
+
+      - name: Test (full gate before publish)
+        run: npm test --workspace @johnhenry/objectify-js
+
+      - name: Publish
+        run: npm publish --workspace @johnhenry/objectify-js --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

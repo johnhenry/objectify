@@ -20,7 +20,8 @@ use rand::Rng;
         typed state and callable methods.\n\n\
         IDs are random hex strings. Any unique prefix resolves to the full ID — same model as git.\n\n\
         Classes are .ts or .py files in .objectify/classes/. TypeScript runs under \
-        Deno (sandboxed); Python runs under python3 (unsandboxed). \
+        Deno (sandboxed); Python runs under python3 (unsandboxed — requires passing \
+        --allow-unsandboxed-python to 'create'/'use'). \
         Both support async methods.",
     after_help = "EXAMPLES:\n  \
         objectify init                                   # init in current directory\n  \
@@ -91,6 +92,13 @@ enum Command {
         /// Expired objects emit a warning but still respond until `objectify gc` is run.
         #[arg(long, value_name = "DURATION")]
         expire: Option<String>,
+
+        /// Required to create an object with a Python (--class=<Name>.py) class.
+        /// Python classes run as a plain, unsandboxed subprocess (full filesystem/
+        /// network/process access) — unlike TypeScript classes, which run under
+        /// Deno's permission model. Not needed for TypeScript classes.
+        #[arg(long)]
+        allow_unsandboxed_python: bool,
     },
 
     /// Permanently delete an object and all its version history
@@ -191,6 +199,14 @@ enum Command {
         /// ID prefix or full ID of the object
         #[arg(value_name = "ID")]
         id: String,
+
+        /// Required to call a method on an object with a Python class. Python classes
+        /// run as a plain, unsandboxed subprocess (full filesystem/network/process
+        /// access) — unlike TypeScript classes, which run under Deno's permission
+        /// model. Must appear before the method name. Not needed for `get`/`set`/`help`
+        /// or for TypeScript classes.
+        #[arg(long)]
+        allow_unsandboxed_python: bool,
 
         /// Subcommand and arguments: get [--at=N] | set <JSON> | <method> [input]
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, value_name = "ARGS")]
@@ -651,8 +667,35 @@ enum ClassLang {
     Python,
 }
 
+/// Reject class names that could escape the classes directory (path traversal)
+/// or otherwise aren't simple identifiers. Class names become filenames
+/// (`<name>.ts` / `<name>.py`) joined directly onto `classes_dir`, and are also
+/// interpolated into generated runner/extractor source, so this is intentionally
+/// strict: letters, digits, `_`, and `-` only.
+///
+/// Applied both at intake (`objectify create --class`, so an invalid name can
+/// never be stored on an object) and defensively at lookup time in
+/// `find_class_file`, since that function is reachable from multiple commands.
+fn validate_class_name(class_name: &str) -> Result<()> {
+    if class_name.is_empty() {
+        bail!("class name cannot be empty");
+    }
+    if !class_name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        bail!(
+            "invalid class name '{}': class names may only contain letters, digits, '_', and '-' \
+             (no '/', '\\', '..', or other path characters)",
+            class_name
+        );
+    }
+    Ok(())
+}
+
 /// Locate a class file, checking .ts then .py. Returns the path and language.
 fn find_class_file(ctx: &ObjectifyContext, class_name: &str) -> Result<(PathBuf, ClassLang)> {
+    validate_class_name(class_name)?;
     let ts = ctx.classes_dir.join(format!("{}.ts", class_name));
     if ts.exists() {
         return Ok((ts, ClassLang::TypeScript));
@@ -969,8 +1012,13 @@ fn run_class_method(
     method: &str,
     current_state: &Value,
     input: Option<&Value>,
+    allow_unsandboxed_python: bool,
 ) -> Result<ClassResult> {
     let (class_file, lang) = find_class_file(ctx, class_name)?;
+
+    if lang == ClassLang::Python && !allow_unsandboxed_python {
+        bail!(unsandboxed_python_error(class_name));
+    }
 
     let state_json = serde_json::to_string(current_state)?;
     let input_json = input
@@ -1070,12 +1118,39 @@ fn invoke_runner(mut cmd: std::process::Command, method: &str) -> Result<ClassRe
 
 /// Best-effort: extract a JSON Schema for the class's state type.
 /// Returns None silently if the toolchain is unavailable or extraction fails.
-fn extract_schema(ctx: &ObjectifyContext, class_name: &str) -> Result<Option<String>> {
+///
+/// Python classes are NOT sandboxed the way TypeScript classes are (TypeScript
+/// runs under Deno's permission model; Python is a plain, unrestricted
+/// subprocess). Extracting a Python class's schema requires executing that
+/// class file, so it requires `allow_unsandboxed_python` — without it, this
+/// returns a clear error instead of silently running untrusted code.
+fn extract_schema(
+    ctx: &ObjectifyContext,
+    class_name: &str,
+    allow_unsandboxed_python: bool,
+) -> Result<Option<String>> {
     match find_class_file(ctx, class_name) {
         Ok((file, ClassLang::TypeScript)) => extract_ts_schema(&file),
-        Ok((file, ClassLang::Python))     => extract_py_schema(&file, class_name),
+        Ok((file, ClassLang::Python)) => {
+            if !allow_unsandboxed_python {
+                bail!(unsandboxed_python_error(class_name));
+            }
+            extract_py_schema(&file, class_name)
+        }
         Err(_) => Ok(None),
     }
+}
+
+/// Shared error text for the `--allow-unsandboxed-python` gate.
+fn unsandboxed_python_error(class_name: &str) -> String {
+    format!(
+        "class '{}' is a Python class. Python classes run as a plain subprocess with \
+         NO sandboxing (full filesystem/network/process access) — unlike TypeScript \
+         classes, which run under Deno's permission model. Pass \
+         --allow-unsandboxed-python to acknowledge this and proceed. \
+         See README.md (\"Class permissions\") for details.",
+        class_name
+    )
 }
 
 fn extract_ts_schema(class_file: &Path) -> Result<Option<String>> {
@@ -1257,7 +1332,14 @@ fn cmd_create(
     description: Option<String>,
     class: Option<String>,
     expire: Option<String>,
+    allow_unsandboxed_python: bool,
 ) -> Result<()> {
+    // Reject unsafe class names (path traversal, etc.) at intake, before the
+    // name is ever stored on an object or used to touch the filesystem.
+    if let Some(ref class_name) = class {
+        validate_class_name(class_name)?;
+    }
+
     let conn = ctx.open_db()?;
     let id = new_id();
     let now = Utc::now().to_rfc3339();
@@ -1265,7 +1347,7 @@ fn cmd_create(
 
     // Best-effort schema extraction when a class is specified
     let schema = if let Some(ref class_name) = class {
-        extract_schema(ctx, class_name)?
+        extract_schema(ctx, class_name, allow_unsandboxed_python)?
     } else {
         None
     };
@@ -1497,7 +1579,12 @@ fn parse_method_input(args: &[String]) -> Result<Option<Value>> {
     }
 }
 
-fn cmd_use(ctx: &ObjectifyContext, prefix: &str, args: Vec<String>) -> Result<()> {
+fn cmd_use(
+    ctx: &ObjectifyContext,
+    prefix: &str,
+    args: Vec<String>,
+    allow_unsandboxed_python: bool,
+) -> Result<()> {
     if args.is_empty() {
         bail!("usage: objectify use <id> <get|set <json>|<method> [input]>");
     }
@@ -1555,7 +1642,14 @@ fn cmd_use(ctx: &ObjectifyContext, prefix: &str, args: Vec<String>) -> Result<()
             let input: Option<Value> = parse_method_input(&args[1..])?;
             let current_state = get_state_at(&conn, &id, None).unwrap_or(Value::Null);
             let result =
-                run_class_method(ctx, class_name, method, &current_state, input.as_ref())?;
+                run_class_method(
+                    ctx,
+                    class_name,
+                    method,
+                    &current_state,
+                    input.as_ref(),
+                    allow_unsandboxed_python,
+                )?;
 
             if result.state_changed {
                 if let Some(ref new_state) = result.state {
@@ -2003,9 +2097,9 @@ fn cmd_skill_install(global: bool, path: Option<PathBuf>) -> Result<()> {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init { global } => cmd_init(global),
-        Command::Create { description, class, expire } => {
+        Command::Create { description, class, expire, allow_unsandboxed_python } => {
             let ctx = ObjectifyContext::resolve()?;
-            cmd_create(&ctx, description, class, expire)
+            cmd_create(&ctx, description, class, expire, allow_unsandboxed_python)
         }
         Command::Destroy { id } => {
             let ctx = ObjectifyContext::resolve()?;
@@ -2019,9 +2113,9 @@ fn run(cli: Cli) -> Result<()> {
             let ctx = ObjectifyContext::resolve()?;
             cmd_list(&ctx, class, expired, since, limit, offset, json)
         }
-        Command::Use { id, args } => {
+        Command::Use { id, args, allow_unsandboxed_python } => {
             let ctx = ObjectifyContext::resolve()?;
-            cmd_use(&ctx, &id, args)
+            cmd_use(&ctx, &id, args, allow_unsandboxed_python)
         }
         Command::Log { id } => {
             let ctx = ObjectifyContext::resolve()?;
@@ -2765,6 +2859,120 @@ mod tests {
 
         let err = find_class_file(&ctx, "NoSuch").unwrap_err();
         assert!(err.to_string().contains("not found"));
+    }
+
+    // ── validate_class_name / path traversal (issue: unsanitized --class name) ─
+
+    #[test]
+    fn validate_class_name_accepts_simple_identifiers() {
+        assert!(validate_class_name("TaskList").is_ok());
+        assert!(validate_class_name("task_list-2").is_ok());
+    }
+
+    #[test]
+    fn validate_class_name_rejects_path_traversal() {
+        for bad in ["../evil", "../../etc/passwd", "a/b", "a\\b", ".."] {
+            let err = validate_class_name(bad).unwrap_err();
+            assert!(
+                err.to_string().contains("invalid class name"),
+                "expected rejection for {:?}, got: {}",
+                bad,
+                err
+            );
+        }
+    }
+
+    #[test]
+    fn validate_class_name_rejects_empty() {
+        let err = validate_class_name("").unwrap_err();
+        assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn find_class_file_rejects_path_traversal() {
+        let dir = TempDir::new().unwrap();
+        let classes = dir.path().join("classes");
+        std::fs::create_dir_all(&classes).unwrap();
+        // A file that a traversal attempt could reach if unsanitized.
+        std::fs::write(dir.path().join("evil.py"), "").unwrap();
+
+        let ctx = ObjectifyContext {
+            dir: dir.path().to_path_buf(),
+            classes_dir: classes.clone(),
+            db_path: dir.path().join("objectify.db"),
+        };
+
+        let err = find_class_file(&ctx, "../evil").unwrap_err();
+        assert!(err.to_string().contains("invalid class name"));
+    }
+
+    #[test]
+    fn create_rejects_path_traversal_class_name() {
+        let dir = TempDir::new().unwrap();
+        let classes = dir.path().join("classes");
+        std::fs::create_dir_all(&classes).unwrap();
+        let ctx = ObjectifyContext {
+            dir: dir.path().to_path_buf(),
+            classes_dir: classes,
+            db_path: dir.path().join("objectify.db"),
+        };
+
+        let err = cmd_create(&ctx, None, Some("../evil".to_string()), None, false).unwrap_err();
+        assert!(err.to_string().contains("invalid class name"));
+    }
+
+    // ── --allow-unsandboxed-python gate (issue: Python classes are unsandboxed) ─
+
+    #[test]
+    fn create_with_python_class_requires_flag() {
+        let dir = TempDir::new().unwrap();
+        let classes = dir.path().join("classes");
+        std::fs::create_dir_all(&classes).unwrap();
+        std::fs::write(classes.join("Danger.py"), "").unwrap();
+        let ctx = ObjectifyContext {
+            dir: dir.path().to_path_buf(),
+            classes_dir: classes,
+            db_path: dir.path().join("objectify.db"),
+        };
+
+        let err = cmd_create(&ctx, None, Some("Danger".to_string()), None, false).unwrap_err();
+        assert!(err.to_string().contains("--allow-unsandboxed-python"));
+    }
+
+    #[test]
+    fn run_class_method_python_requires_flag() {
+        let dir = TempDir::new().unwrap();
+        let classes = dir.path().join("classes");
+        std::fs::create_dir_all(&classes).unwrap();
+        std::fs::write(classes.join("Danger.py"), "").unwrap();
+        let ctx = ObjectifyContext {
+            dir: dir.path().to_path_buf(),
+            classes_dir: classes,
+            db_path: dir.path().join("objectify.db"),
+        };
+
+        let err =
+            run_class_method(&ctx, "Danger", "doIt", &Value::Null, None, false).unwrap_err();
+        assert!(err.to_string().contains("--allow-unsandboxed-python"));
+    }
+
+    #[test]
+    fn cmd_use_python_method_requires_flag() {
+        let dir = TempDir::new().unwrap();
+        let classes = dir.path().join("classes");
+        std::fs::create_dir_all(&classes).unwrap();
+        std::fs::write(classes.join("Danger.py"), "").unwrap();
+        let ctx = ObjectifyContext {
+            dir: dir.path().to_path_buf(),
+            classes_dir: classes,
+            db_path: dir.path().join("objectify.db"),
+        };
+        let conn = ctx.open_db().unwrap();
+        let id = insert_obj(&conn, Some("Danger"), None);
+        drop(conn);
+
+        let err = cmd_use(&ctx, &id, args(&["doIt"]), false).unwrap_err();
+        assert!(err.to_string().contains("--allow-unsandboxed-python"));
     }
 
     // ── cmd_classes ───────────────────────────────────────────────────────────
