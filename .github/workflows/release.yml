@@ -11,6 +11,20 @@ name: Release (build binaries + publish npm packages)
 # `optionalDependencies` versions in npm/objectify/package.json to match
 # (they're pinned exact, not with a caret range — see npm/objectify/README.md
 # for why). Commit that as its own PR, merge, then tag.
+#
+# macOS DISABLED 2026-08-27: hosted macOS runners aren't set up to run
+# reliably here (observed 1+ hour queue times). darwin-arm64/darwin-x64 are
+# commented out below in THREE places that all need to move together:
+# (1) the `build` matrix, (2) `publish-platform-packages`'s BINARY_NAME map
+# in the checksums step, (3) the same map in the publish step. Until
+# re-enabled, a release only ships linux-x64/linux-arm64/win32-x64 —
+# @johnhenry/objectify-darwin-* packages won't get a published version at
+# all, so npm/objectify/package.json's optionalDependencies pin on an exact
+# darwin version that was never published: Mac installs of this release
+# would resolve zero platform package and get "no binary for your
+# platform" from bin/objectify.js. Don't tag a real release while this is
+# disabled unless that's an acceptable interim state (Linux/Windows only).
+# To re-enable: uncomment all three darwin blocks together.
 on:
   release:
     types: [published]
@@ -30,12 +44,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: darwin-arm64
-            os: macos-14
-            binary: objectify
-          - name: darwin-x64
-            os: macos-13
-            binary: objectify
+          # darwin-arm64/darwin-x64 disabled — see the note at the top of
+          # this file. Uncomment together with the other two darwin blocks
+          # below to restore.
+          # - name: darwin-arm64
+          #   os: macos-14
+          #   binary: objectify
+          # - name: darwin-x64
+          #   os: macos-13
+          #   binary: objectify
           - name: linux-x64
             os: ubuntu-latest
             binary: objectify
@@ -101,9 +118,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # darwin-arm64/darwin-x64 disabled — see the note at the top of
+          # this file. Uncomment together with the other two darwin blocks
+          # to restore.
           declare -A BINARY_NAME=(
-            [darwin-arm64]=objectify
-            [darwin-x64]=objectify
+            # [darwin-arm64]=objectify
+            # [darwin-x64]=objectify
             [linux-x64]=objectify
             [linux-arm64]=objectify
             [win32-x64]=objectify.exe
@@ -133,9 +153,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # darwin-arm64/darwin-x64 disabled — see the note at the top of
+          # this file. Uncomment together with the other two darwin blocks
+          # to restore.
           declare -A BINARY_NAME=(
-            [darwin-arm64]=objectify
-            [darwin-x64]=objectify
+            # [darwin-arm64]=objectify
+            # [darwin-x64]=objectify
             [linux-x64]=objectify
             [linux-arm64]=objectify
             [win32-x64]=objectify.exe
