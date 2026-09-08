@@ -35,6 +35,15 @@ jobs:
         run: npm test --workspace @johnhenry/objectify-js
 
       - name: Publish
-        run: npm publish --workspace @johnhenry/objectify-js --access public --provenance
+        # Idempotent: `npm view` exits non-zero for a version that isn't on
+        # the registry yet, which is the signal to publish.
+        run: |
+          PKG_NAME=$(node -p "require('./packages/objectify-js/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/objectify-js/package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::notice title=Already published::$PKG_NAME@$PKG_VERSION is already on npm; nothing to do."
+            exit 0
+          fi
+          npm publish --workspace @johnhenry/objectify-js --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

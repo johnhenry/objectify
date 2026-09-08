@@ -169,6 +169,12 @@ jobs:
             mkdir -p "npm/${platform}/bin"
             cp "artifacts/objectify-${platform}/${bin}" "${dest}"
             chmod +x "${dest}" || true # chmod is a no-op/irrelevant for the .exe
+            name=$(node -p "require('./npm/${platform}/package.json').name")
+            version=$(node -p "require('./npm/${platform}/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::notice title=Already published::$name@$version is already on npm; nothing to do."
+              continue
+            fi
             echo "Publishing @johnhenry/objectify-${platform}..."
             (cd "npm/${platform}" && npm publish --access public --provenance)
           done
@@ -196,7 +202,16 @@ jobs:
           path: npm/objectify
 
       - name: Publish
-        run: npm publish --access public --provenance
+        # Idempotent: `npm view` exits non-zero for a version that isn't on
+        # the registry yet, which is the signal to publish.
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::notice title=Already published::$PKG_NAME@$PKG_VERSION is already on npm; nothing to do."
+            exit 0
+          fi
+          npm publish --access public --provenance
         working-directory: npm/objectify
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
