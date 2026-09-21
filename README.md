@@ -1,5 +1,7 @@
 # objectify
 
+Full documentation: [opensource.johnhenry.me/objectify](https://opensource.johnhenry.me/objectify/)
+
 Turn a TypeScript or Python class into a CLI tool. Instantly.
 
 Write a class. Drop it in a folder. Every method becomes a shell command. Every call takes JSON arguments. Every write is versioned. State is persistent, optional, and backed by SQLite. The whole thing is a single binary — no server, no SDK, no configuration.
@@ -23,6 +25,62 @@ objectify log 3fa8
 # 1        create    2 hours ago
 # 2        add       1 hour ago
 ```
+
+## Table of Contents
+
+- [Installation](#installation)
+  - [Optional: Deno (for TypeScript classes)](#optional-deno-for-typescript-classes)
+  - [Optional: Python 3 (for Python classes)](#optional-python-3-for-python-classes)
+- [Quick start](#quick-start)
+- [IDs](#ids)
+- [Directory resolution](#directory-resolution)
+- [CLI reference](#cli-reference)
+  - [`objectify init`](#objectify-init)
+  - [`objectify create`](#objectify-create)
+  - [`objectify destroy`](#objectify-destroy)
+  - [`objectify inspect`](#objectify-inspect)
+  - [`objectify list`](#objectify-list)
+  - [`objectify use <id> get`](#objectify-use-id-get)
+  - [`objectify use <id> set`](#objectify-use-id-set)
+  - [`objectify use <id> <method>`](#objectify-use-id-method)
+  - [`objectify log`](#objectify-log)
+  - [`objectify diff`](#objectify-diff)
+  - [`objectify rewind`](#objectify-rewind)
+  - [`objectify fork`](#objectify-fork)
+  - [`objectify gc`](#objectify-gc)
+- [Listing classes](#listing-classes)
+  - [`objectify classes`](#objectify-classes)
+- [Writing classes](#writing-classes)
+  - [TypeScript](#typescript)
+  - [Python](#python)
+  - [Calling methods with input](#calling-methods-with-input)
+- [Schema validation](#schema-validation)
+- [Class permissions](#class-permissions)
+  - [Path tokens](#path-tokens)
+- [Class introspection](#class-introspection)
+- [Shell aliases](#shell-aliases)
+- [Designed for agents](#designed-for-agents)
+  - [Why agents need this](#why-agents-need-this)
+  - [Agent usage patterns](#agent-usage-patterns)
+  - [The agent integration model](#the-agent-integration-model)
+- [Comparison with Cloudflare Durable Objects](#comparison-with-cloudflare-durable-objects)
+  - [What they share](#what-they-share)
+  - [Where they diverge](#where-they-diverge)
+  - [When to use which](#when-to-use-which)
+  - [The philosophical difference](#the-philosophical-difference)
+- [Comparison with MCP (Model Context Protocol)](#comparison-with-mcp-model-context-protocol)
+  - [What MCP gives you](#what-mcp-gives-you)
+  - [What objectify gives you](#what-objectify-gives-you)
+  - [Side-by-side comparison](#side-by-side-comparison)
+  - [The key differences](#the-key-differences)
+  - [What about external services?](#what-about-external-services)
+  - [When to use MCP](#when-to-use-mcp)
+  - [When to use objectify](#when-to-use-objectify)
+  - [Using them together](#using-them-together)
+- [Output contract](#output-contract)
+- [SQLite schema](#sqlite-schema)
+- [Architecture](#architecture)
+- [License](#license)
 
 ---
 
