@@ -1,7 +1,13 @@
 {
   "name": "objectify-monorepo",
+  "version": "0.0.0",
   "private": true,
   "description": "Workspace root for objectify's npm-side packages (TypeScript adapter + binary distribution). The CLI itself is a Rust crate built with cargo, not npm — see Cargo.toml.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnhenry/objectify.git"
+  },
+  "homepage": "https://opensource.johnhenry.me/objectify/",
   "packageManager": "npm@10.0.0",
   "workspaces": ["packages/*"],
   "scripts": {
