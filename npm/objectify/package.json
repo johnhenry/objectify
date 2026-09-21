@@ -25,7 +25,7 @@
   "files": ["bin", "checksums.json"],
   "os": ["darwin", "linux", "win32"],
   "engines": {
-    "node": ">=18"
+    "node": ">=26.0.0"
   },
   "optionalDependencies": {
     "@johnhenry/objectify-darwin-arm64": "0.0.0",
