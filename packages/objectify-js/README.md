@@ -1,5 +1,7 @@
 # @johnhenry/objectify-js
 
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify-js.svg)](https://www.npmjs.com/package/@johnhenry/objectify-js)
+
 TypeScript adapter for [objectify](../../README.md) — persistent, versioned JSON objects backed by SQLite.
 
 Talks directly to the same SQLite database as the `objectify` CLI. No shelling out, no server process. Use it to give your Node.js apps versioned, typed state — or as the state layer behind an RPC framework like [oRPC](https://orpc.dev/).
