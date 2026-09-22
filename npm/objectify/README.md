@@ -1,5 +1,7 @@
 # @johnhenry/objectify
 
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify.svg)](https://www.npmjs.com/package/@johnhenry/objectify)
+
 `objectify` — persistent, versioned JSON objects backed by SQLite. A stateful,
 agent-friendly CLI: `create` an object, `use` it to read/write state, `log` /
 `diff` / `rewind` through its version history, `fork` an independent copy.

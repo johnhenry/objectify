@@ -1,5 +1,9 @@
 # objectify
 
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify.svg)](https://www.npmjs.com/package/@johnhenry/objectify)
+[![CI](https://github.com/johnhenry/objectify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnhenry/objectify/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/%40johnhenry%2Fobjectify.svg)](LICENSE)
+
 Full documentation: [opensource.johnhenry.me/objectify](https://opensource.johnhenry.me/objectify/)
 
 Turn a TypeScript or Python class into a CLI tool. Instantly.
@@ -26,7 +30,7 @@ objectify log 3fa8
 # 2        add       1 hour ago
 ```
 
-## Table of Contents
+## Contents
 
 - [Installation](#installation)
   - [Optional: Deno (for TypeScript classes)](#optional-deno-for-typescript-classes)
@@ -80,6 +84,7 @@ objectify log 3fa8
 - [Output contract](#output-contract)
 - [SQLite schema](#sqlite-schema)
 - [Architecture](#architecture)
+- [Security model](#security-model)
 - [License](#license)
 
 ---
@@ -1235,6 +1240,79 @@ Every write is a full snapshot. No delta storage — history is always directly 
 Class subprocesses are only invoked when calling a user-defined method. The common agent path — `get`, `set`, `list`, `log`, `rewind`, `fork` — never starts a subprocess.
 
 SQLite is linked statically (via `rusqlite` bundled feature). The binary has no runtime dependencies beyond optional `deno` or `python3` for class execution.
+
+---
+
+## Security model
+
+objectify runs user-written class code on every request whose command isn't
+one of the built-in state operations (`get`, `set`, `list`, `log`, `rewind`,
+`fork`) — see [Class permissions](#class-permissions) for the full
+permission model. This section is the guarantee/responsibility split for
+that trust boundary.
+
+**What objectify guarantees:**
+
+- **TypeScript class methods run under a default-deny Deno sandbox.**
+  `build_deno_flags` (`src/main.rs`) always emits `--allow-read` scoped to
+  exactly the classes directory and the Deno cache, and `--allow-env` scoped
+  to exactly three names (`OBJECTIFY_INPUT`, `OBJECTIFY_STATE`,
+  `OBJECTIFY_METHOD`) — nothing else is readable or visible by default. Every
+  additional grant (`net`, `write`, broader `read`/`env`, `run`, `sys`) must
+  be opted into explicitly, per class, in that class's own `class.json`.
+- **Python classes cannot run at all without an explicit, informed
+  opt-in.** Python has no sandbox to opt into — a Python class is a plain,
+  unrestricted subprocess with full filesystem/network/process access from
+  the moment it starts. objectify refuses to execute one at all — on both
+  `create --class=<Name>` (schema extraction) and `use <id> <method>` — until
+  `--allow-unsandboxed-python` is passed, and the fail-fast error
+  (`unsandboxed_python_error` in `src/main.rs`) states exactly what is being
+  granted, not just that a flag is missing.
+- **`class.json` grants are per-class, not global.** A permission set
+  written for one class has no effect on any other class's subprocess; each
+  invocation rebuilds its Deno flags from that specific class's sidecar
+  file.
+- **Class names are validated against path traversal.** A class name cannot
+  escape the classes directory to read or create a file elsewhere (fixed as
+  part of the security audit in #6/#7, see `CHANGELOG.md`).
+- **Published npm packages carry provenance**, and the binary distribution
+  ships a `checksums.json` verified before the platform-specific binary is
+  used (see `npm/objectify/README.md`).
+
+**What is still yours:**
+
+- **TypeScript schema extraction runs with broader permissions than the
+  class's own method calls.** `extract_ts_schema` (`src/main.rs`) always
+  grants unconditional `--allow-env` and `--allow-net` — not scoped by
+  `class.json` — because `ts-json-schema-generator` needs them to resolve
+  `npm:`-specifier imports during extraction. This runs on every
+  `create --class=<Name>` for a TypeScript class, before any `class.json`
+  permission has a chance to apply. If you wouldn't grant a class network
+  access, its schema extraction step still has it.
+- **`class.json`'s grants, once made, are real grants — objectify does not
+  second-guess them.** `net: true` or a wide `read`/`write` path list is
+  passed straight to Deno; objectify's sandbox is Deno's sandbox, not an
+  additional layer on top of it. A bug in Deno's permission enforcement is a
+  bug in objectify's guarantee.
+- **Everything about Python classes.** Per the flag's own error text: "full
+  filesystem/network/process access." `--allow-unsandboxed-python` is
+  acknowledgment, not mitigation — there is no partial-trust mode for Python.
+  Use TypeScript classes for anything you would not otherwise run
+  unsandboxed on this machine.
+- **The state itself is unencrypted and unauthenticated at rest.** The
+  SQLite database (`objectify.db`) is a plain file with no access control of
+  its own beyond the filesystem permissions of the directory it lives in —
+  anyone who can read that file can read every version of every object ever
+  written to it, and anyone who can write to it can bypass objectify
+  entirely. objectify does not run as a server and has no network listener
+  of its own; this is a single-user, local-filesystem-trust model, not a
+  multi-tenant one.
+- **`npm:`/`import` package resolution inside a class is not vetted by
+  objectify.** A TypeScript class with `net` access can still pull down and
+  run arbitrary npm packages within whatever permissions `class.json`
+  granted; a Python class with `--allow-unsandboxed-python` can `pip
+  install` or `import` anything already on the host. objectify authenticates
+  nothing about the supply chain of code a class itself chooses to load.
 
 ---
 
