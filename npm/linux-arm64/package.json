@@ -1,5 +1,5 @@
 {
-  "name": "@johnhenry/objectify-linux-arm64",
+  "name": "@johnhenry/objectify-cli-linux-arm64",
   "version": "0.0.0",
   "description": "objectify CLI binary for Linux (arm64, glibc)",
   "repository": {

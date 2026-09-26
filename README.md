@@ -1,8 +1,8 @@
 # objectify
 
-[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify.svg)](https://www.npmjs.com/package/@johnhenry/objectify)
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify-cli.svg)](https://www.npmjs.com/package/@johnhenry/objectify-cli)
 [![CI](https://github.com/johnhenry/objectify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnhenry/objectify/actions/workflows/ci.yml)
-[![license](https://img.shields.io/npm/l/%40johnhenry%2Fobjectify.svg)](LICENSE)
+[![license](https://img.shields.io/npm/l/%40johnhenry%2Fobjectify-cli.svg)](LICENSE)
 
 Full documentation: [opensource.johnhenry.me/objectify](https://opensource.johnhenry.me/objectify/)
 
@@ -94,14 +94,14 @@ objectify log 3fa8
 The easiest way, if you have Node.js 18+:
 
 ```sh
-npm install -g @johnhenry/objectify
+npm install -g @johnhenry/objectify-cli
 # or run it without installing:
-npx @johnhenry/objectify --help
+npx @johnhenry/objectify-cli --help
 ```
 
 This installs a small platform-detection shim plus a prebuilt binary for
 your OS/architecture — no Rust toolchain required. See
-[`npm/objectify/README.md`](./npm/objectify/README.md) for how this works and
+[`npm/objectify-cli/README.md`](./npm/objectify-cli/README.md) for how this works and
 which platforms currently ship a prebuilt binary.
 
 Or build from source, if you have [Rust](https://rustup.rs) 1.70+:
@@ -1277,7 +1277,7 @@ that trust boundary.
   part of the security audit in #6/#7, see `CHANGELOG.md`).
 - **Published npm packages carry provenance**, and the binary distribution
   ships a `checksums.json` verified before the platform-specific binary is
-  used (see `npm/objectify/README.md`).
+  used (see `npm/objectify-cli/README.md`).
 
 **What is still yours:**
 

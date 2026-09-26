@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
+## 0.0.0 — npm package rename: the CLI shim is now `objectify-cli` (2026-09-26)
+
+The CLI's npm install shim and its five platform packages are renamed from
+`@johnhenry/objectify`/`@johnhenry/objectify-<platform>` to
+`@johnhenry/objectify-cli`/`@johnhenry/objectify-cli-<platform>`. The plain
+`@johnhenry/objectify` name is now the TypeScript adapter package
+(`packages/objectify`, formerly published for a few minutes as
+`@johnhenry/objectify-js` before this correction) — a cleaner split now that
+both npm-side packages exist for real, rather than the CLI having first
+claim on the unqualified name just because it's the project's primary
+artifact. The actual CLI command you run is unaffected either way: it's
+still `objectify`, only the npm *package* name changed. No functional
+change to either package's code.
+
 ## 0.0.0 — npm scope migration, Python support, and a security audit (2026-08-25 – 2026-08-26)
 
 The unscoped name `objectify` on npm belongs to an unrelated third party —

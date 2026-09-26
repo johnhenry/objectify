@@ -1,6 +1,6 @@
-# @johnhenry/objectify
+# @johnhenry/objectify-cli
 
-[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify.svg)](https://www.npmjs.com/package/@johnhenry/objectify)
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify-cli.svg)](https://www.npmjs.com/package/@johnhenry/objectify-cli)
 
 `objectify` — persistent, versioned JSON objects backed by SQLite. A stateful,
 agent-friendly CLI: `create` an object, `use` it to read/write state, `log` /
@@ -9,24 +9,28 @@ agent-friendly CLI: `create` an object, `use` it to read/write state, `log` /
 Full CLI reference, architecture notes, and "designed for agents" docs live at
 **https://opensource.johnhenry.me/objectify/**.
 
-> **This is the first npm distribution of `objectify`.** The CLI has existed
-> as a `cargo build --release` / GitHub-release binary before now — this
-> package (and its five per-platform siblings) is a new packaging story, not
-> an import of a previously-published npm package. Versioning starts at
+> **This is the first npm distribution of the `objectify` CLI.** The CLI has
+> existed as a `cargo build --release` / GitHub-release binary before now —
+> this package (and its five per-platform siblings) is a new packaging story,
+> not an import of a previously-published npm package. Versioning starts at
 > `0.0.0`, matching this project's usual convention for a package's first
 > appearance under the `@johnhenry` scope, extended here to cover "first npm
 > appearance at all," since there's no prior npm version to restart from.
+> Named `objectify-cli` rather than plain `objectify` because
+> [`@johnhenry/objectify`](https://www.npmjs.com/package/@johnhenry/objectify)
+> is this project's TypeScript adapter package — the CLI command you actually
+> run is still `objectify`, only the npm package name differs.
 
 ## Install
 
 ```sh
-npm install -g @johnhenry/objectify
+npm install -g @johnhenry/objectify-cli
 ```
 
 or run it without installing:
 
 ```sh
-npx @johnhenry/objectify --help
+npx @johnhenry/objectify-cli --help
 ```
 
 ## How this works
@@ -38,11 +42,11 @@ packages:
 
 | Package | Platform |
 |---|---|
-| `@johnhenry/objectify-darwin-arm64` | macOS, Apple Silicon |
-| `@johnhenry/objectify-darwin-x64` | macOS, Intel |
-| `@johnhenry/objectify-linux-x64` | Linux, x64 (glibc) |
-| `@johnhenry/objectify-linux-arm64` | Linux, arm64 (glibc) |
-| `@johnhenry/objectify-win32-x64` | Windows, x64 |
+| `@johnhenry/objectify-cli-darwin-arm64` | macOS, Apple Silicon |
+| `@johnhenry/objectify-cli-darwin-x64` | macOS, Intel |
+| `@johnhenry/objectify-cli-linux-x64` | Linux, x64 (glibc) |
+| `@johnhenry/objectify-cli-linux-arm64` | Linux, arm64 (glibc) |
+| `@johnhenry/objectify-cli-win32-x64` | Windows, x64 |
 
 `npm install` only downloads the one matching your machine — it's listed as
 an `optionalDependency` with `os`/`cpu` fields, which is how npm decides which

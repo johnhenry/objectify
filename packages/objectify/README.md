@@ -1,6 +1,6 @@
-# @johnhenry/objectify-js
+# @johnhenry/objectify
 
-[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify-js.svg)](https://www.npmjs.com/package/@johnhenry/objectify-js)
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify.svg)](https://www.npmjs.com/package/@johnhenry/objectify)
 
 TypeScript adapter for [objectify](../../README.md) — persistent, versioned JSON objects backed by SQLite.
 
@@ -8,14 +8,18 @@ Talks directly to the same SQLite database as the `objectify` CLI. No shelling o
 
 > **Provenance:** this package was previously an internal, unpublished
 > package (`objectify-js@0.1.0`, workspace-local only — it never had a
-> version on the npm registry). It is being published for the first time
-> as `@johnhenry/objectify-js`, restarting at `0.0.0` per the
-> [`@johnhenry` adoption convention](https://opensource.johnhenry.me/).
+> version on the npm registry). It is published as `@johnhenry/objectify`,
+> restarting at `0.0.0` per the
+> [`@johnhenry` adoption convention](https://opensource.johnhenry.me/) --
+> briefly published as `@johnhenry/objectify-js` first, corrected within
+> the hour once it was clear the plain `objectify` name (reserved for the
+> CLI's own npm install shim until then) was the right fit for this
+> package instead.
 
 ## Installation
 
 ```sh
-npm install @johnhenry/objectify-js
+npm install @johnhenry/objectify
 ```
 
 Requires Node.js 22+ (matches [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3)'s minimum supported version — its N-API prebuilds are what let this package install without a native compiler toolchain).
@@ -33,7 +37,7 @@ objectify init
 ## Quick start
 
 ```ts
-import { Objectify } from '@johnhenry/objectify-js';
+import { Objectify } from '@johnhenry/objectify';
 
 const store = new Objectify(); // auto-finds .objectify/ walking up from cwd
 
@@ -157,12 +161,12 @@ Returned by `store.use(idPrefix)`. All operations are scoped to a single resolve
 
 ## Using with oRPC
 
-objectify-js is a natural fit as the state layer behind [oRPC](https://orpc.dev/) procedures. oRPC handles the network boundary (HTTP, type safety, OpenAPI spec generation), while objectify handles the state boundary (persistence, versioning, schema validation). Together, you get typed RPC endpoints with built-in version history, rollback, and audit trails — without writing any state management code.
+objectify is a natural fit as the state layer behind [oRPC](https://orpc.dev/) procedures. oRPC handles the network boundary (HTTP, type safety, OpenAPI spec generation), while objectify handles the state boundary (persistence, versioning, schema validation). Together, you get typed RPC endpoints with built-in version history, rollback, and audit trails — without writing any state management code.
 
 ### Basic setup
 
 ```ts
-import { Objectify } from '@johnhenry/objectify-js';
+import { Objectify } from '@johnhenry/objectify';
 import { os } from '@orpc/server';
 import { z } from 'zod';
 
