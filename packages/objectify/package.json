@@ -1,5 +1,5 @@
 {
-  "name": "@johnhenry/objectify-js",
+  "name": "@johnhenry/objectify",
   "version": "0.0.0",
   "description": "TypeScript adapter for objectify — persistent, versioned JSON objects backed by SQLite",
   "type": "module",
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/johnhenry/objectify.git",
-    "directory": "packages/objectify-js"
+    "directory": "packages/objectify"
   },
   "homepage": "https://opensource.johnhenry.me/objectify/",
   "bugs": "https://github.com/johnhenry/objectify/issues",

@@ -31,11 +31,11 @@ const path = require('path');
 const OBJECTIFY_BINARY_PATH = process.env.OBJECTIFY_BINARY_PATH;
 
 const PACKAGES = {
-  'darwin arm64': '@johnhenry/objectify-darwin-arm64',
-  'darwin x64': '@johnhenry/objectify-darwin-x64',
-  'linux arm64': '@johnhenry/objectify-linux-arm64',
-  'linux x64': '@johnhenry/objectify-linux-x64',
-  'win32 x64': '@johnhenry/objectify-win32-x64',
+  'darwin arm64': '@johnhenry/objectify-cli-darwin-arm64',
+  'darwin x64': '@johnhenry/objectify-cli-darwin-x64',
+  'linux arm64': '@johnhenry/objectify-cli-linux-arm64',
+  'linux x64': '@johnhenry/objectify-cli-linux-x64',
+  'win32 x64': '@johnhenry/objectify-cli-win32-x64',
 };
 
 function binSubpath(platform) {
@@ -68,7 +68,7 @@ function resolveBinaryPath() {
     );
   }
 
-  const platformName = pkg.replace('@johnhenry/objectify-', '');
+  const platformName = pkg.replace('@johnhenry/objectify-cli-', '');
 
   try {
     const binaryPath = require.resolve(`${pkg}/${binSubpath(platform)}`);
@@ -77,10 +77,10 @@ function resolveBinaryPath() {
     fail(
       `Could not find the objectify binary for your platform (${key}).\n\n` +
         `Expected it in the optional dependency "${pkg}", which npm should\n` +
-        `have installed automatically alongside "@johnhenry/objectify".\n\n` +
+        `have installed automatically alongside "@johnhenry/objectify-cli".\n\n` +
         `This usually means the optional dependency failed to install or was\n` +
         `skipped. Try:\n\n` +
-        `  npm install --include=optional @johnhenry/objectify\n\n` +
+        `  npm install --include=optional @johnhenry/objectify-cli\n\n` +
         `If you're using a package manager other than npm, make sure it\n` +
         `doesn't skip optional dependencies (some configurations of pnpm/\n` +
         `Yarn need "supportedArchitectures" set explicitly).\n\n` +
@@ -145,7 +145,7 @@ function verifyChecksum(binaryPath, platformName) {
         `objectify's release CI for this version. It may have been tampered\n` +
         `with, corrupted, or come from an untrusted registry mirror. Refusing\n` +
         `to execute it.\n\n` +
-        `Try reinstalling: npm install --include=optional @johnhenry/objectify\n` +
+        `Try reinstalling: npm install --include=optional @johnhenry/objectify-cli\n` +
         `If the mismatch persists, please open an issue:\n` +
         `  https://github.com/johnhenry/objectify/issues`,
     );

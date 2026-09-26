@@ -12,7 +12,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "turbo run build",
-    "test": "turbo run build && npm test --workspace @johnhenry/objectify-js",
+    "test": "turbo run build && npm test --workspace @johnhenry/objectify",
     "pack:dry-run": "npm pack --dry-run --workspaces"
   },
   "devDependencies": {

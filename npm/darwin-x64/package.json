@@ -1,5 +1,5 @@
 {
-  "name": "@johnhenry/objectify-darwin-x64",
+  "name": "@johnhenry/objectify-cli-darwin-x64",
   "version": "0.0.0",
   "description": "objectify CLI binary for macOS (Intel / x64)",
   "repository": {

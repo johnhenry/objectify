@@ -8,7 +8,7 @@ import { Objectify } from './objectify.js';
 import { openDb } from './db.js';
 
 function withStore(fn: (store: Objectify) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), 'objectify-js-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'objectify-test-'));
   const store = new Objectify({ dir });
   try {
     fn(store);
@@ -129,7 +129,7 @@ test('destroy removes an object permanently', () => {
 // ── schema compatibility ───────────────────────────────────────────────────
 
 function withTmpDb(fn: (dbPath: string) => void): void {
-  const dir = mkdtempSync(join(tmpdir(), 'objectify-js-schema-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'objectify-schema-test-'));
   const dbPath = join(dir, 'objectify.db');
   try {
     fn(dbPath);

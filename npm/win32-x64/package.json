@@ -1,5 +1,5 @@
 {
-  "name": "@johnhenry/objectify-win32-x64",
+  "name": "@johnhenry/objectify-cli-win32-x64",
   "version": "0.0.0",
   "description": "objectify CLI binary for Windows (x64)",
   "repository": {

@@ -1,4 +1,4 @@
-name: objectify-js Publish
+name: objectify Publish
 
 on:
   release:
@@ -26,24 +26,24 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Install
-        run: npm ci --workspace @johnhenry/objectify-js
+        run: npm ci --workspace @johnhenry/objectify
 
       - name: Build
-        run: npm run build --workspace @johnhenry/objectify-js
+        run: npm run build --workspace @johnhenry/objectify
 
       - name: Test (full gate before publish)
-        run: npm test --workspace @johnhenry/objectify-js
+        run: npm test --workspace @johnhenry/objectify
 
       - name: Publish
         # Idempotent: `npm view` exits non-zero for a version that isn't on
         # the registry yet, which is the signal to publish.
         run: |
-          PKG_NAME=$(node -p "require('./packages/objectify-js/package.json').name")
-          PKG_VERSION=$(node -p "require('./packages/objectify-js/package.json').version")
+          PKG_NAME=$(node -p "require('./packages/objectify/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/objectify/package.json').version")
           if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
             echo "::notice title=Already published::$PKG_NAME@$PKG_VERSION is already on npm; nothing to do."
             exit 0
           fi
-          npm publish --workspace @johnhenry/objectify-js --access public --provenance
+          npm publish --workspace @johnhenry/objectify --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -3,11 +3,11 @@
 A polyglot repo, not a single-language monorepo: the CLI itself is one Rust
 crate (`Cargo.toml` at root, all source in `src/main.rs` by design — see
 "Repo-specific gotchas"), built with `cargo`, tested with `cargo test`, and
-distributed to npm as prebuilt binaries. Alongside it, `packages/objectify-js`
+distributed to npm as prebuilt binaries. Alongside it, `packages/objectify`
 is a real npm workspace (`workspaces: ["packages/*"]` in root
 `package.json`) holding one publishable TypeScript adapter, tested with
 `node --test`. `npm/` holds six hand-maintained, publish-only
-`package.json` manifests (the `@johnhenry/objectify` shim plus five
+`package.json` manifests (the `@johnhenry/objectify-cli` shim plus five
 platform packages) that are **not** part of the npm workspace — they exist
 only to be populated with a built binary and published by `release.yml`,
 never built or tested via `npm run build`/`test`.
@@ -19,17 +19,17 @@ never built or tested via `npm run build`/`test`.
 | Component | Language | Role |
 | --- | --- | --- |
 | [`src/main.rs`](src) (root `Cargo.toml`) | Rust | The CLI itself: parsing, ID management, SQLite, schema validation, JSON diff, class-subprocess dispatch. One crate, one binary. |
-| [`packages/objectify-js`](packages/objectify-js) | TypeScript | `@johnhenry/objectify-js` — the TypeScript adapter (`DoBase<T>`, SQLite store). The one real npm workspace member. |
-| [`npm/objectify`](npm/objectify) | JS (hand-maintained) | `@johnhenry/objectify` — the published shim: platform-detects at install time and `exec`s the matching platform package's binary. Not built from source in this repo; assembled at release time. |
-| [`npm/{darwin,linux,win32}-{arm64,x64}`](npm) | none (binary only) | Five `@johnhenry/objectify-<platform>` packages, each carrying one prebuilt `objectify` binary plus a `checksums.json`. Populated and published only by `release.yml`. |
+| [`packages/objectify`](packages/objectify) | TypeScript | `@johnhenry/objectify` — the TypeScript adapter (`DoBase<T>`, SQLite store). The one real npm workspace member. |
+| [`npm/objectify-cli`](npm/objectify-cli) | JS (hand-maintained) | `@johnhenry/objectify-cli` — the published shim: platform-detects at install time and `exec`s the matching platform package's binary. Not built from source in this repo; assembled at release time. |
+| [`npm/{darwin,linux,win32}-{arm64,x64}`](npm) | none (binary only) | Five `@johnhenry/objectify-cli-<platform>` packages, each carrying one prebuilt `objectify` binary plus a `checksums.json`. Populated and published only by `release.yml`. |
 
 There is no cross-language build dependency in the usual monorepo sense —
-`objectify-js` does not depend on the Rust binary at build time, and the
+`objectify` does not depend on the Rust binary at build time, and the
 Rust binary does not depend on any npm package. The two sides are tested by
 **fully separate CI workflows**, not one job matrix: `.github/workflows/ci.yml`
 (Rust, cross-platform matrix, path-unfiltered) and
-`.github/workflows/objectify-js-ci.yml` (Node, path-filtered to
-`packages/objectify-js/**`). A change to one language's code alone never
+`.github/workflows/objectify-ci.yml` (Node, path-filtered to
+`packages/objectify/**`). A change to one language's code alone never
 triggers the other's CI job.
 
 ## The verification loop (before every push)
@@ -43,19 +43,19 @@ side.
 cargo build --release --locked
 cargo test --release --locked
 
-# npm (objectify-js only -- npm/*'s manifests are never built or tested)
+# npm (objectify only -- npm/*'s manifests are never built or tested)
 npm run build                                    # turbo run build
-npm test --workspace @johnhenry/objectify-js      # node --test dist/objectify.test.js
+npm test --workspace @johnhenry/objectify      # node --test dist/objectify.test.js
 ```
 
 CI matches this split: `ci.yml` runs `cargo build --release --locked` then
 `cargo test --release --locked` on `linux-x64`, `linux-arm64`, and
 `windows-x64` (macOS is intentionally excluded from per-PR CI — see
 gotchas — but is built and tested for real in `release.yml`).
-`objectify-js-ci.yml` runs the npm side, gated by `engines.node >=26.0.0`.
+`objectify-ci.yml` runs the npm side, gated by `engines.node >=26.0.0`.
 
 A genuinely fresh clone before a release:
-`git clone . /tmp/objectify-verifyN && cd $_ && cargo build --release && cargo test --release && npm ci && npm run build && npm test --workspace @johnhenry/objectify-js`.
+`git clone . /tmp/objectify-verifyN && cd $_ && cargo build --release && cargo test --release && npm ci && npm run build && npm test --workspace @johnhenry/objectify`.
 
 ## Repo-specific gotchas
 
@@ -112,10 +112,10 @@ The one case that applies: adding a new supported platform means:
 - A new build target added to `release.yml`'s build matrix and a new
   `npm/<platform>/package.json` manifest (copy an existing platform
   package's shape: name, `os`/`cpu` fields, `files`).
-- The new package added to `npm/objectify/package.json`'s
+- The new package added to `npm/objectify-cli/package.json`'s
   `optionalDependencies` (pinned exact, matching every other platform
   entry) and to its shim's platform-detection logic.
-- `npm/objectify/README.md` updated to list the new platform as supported.
+- `npm/objectify-cli/README.md` updated to list the new platform as supported.
 
 ## Non-goals
 
@@ -130,16 +130,16 @@ constraints in `CONTRIBUTING.md`, not omissions to fill in.
 The crate is not published to crates.io; its version is what
 `objectify --version` reports and what's embedded in release binaries.
 
-**npm packages:** bump `version` in `npm/objectify/package.json` and all
+**npm packages:** bump `version` in `npm/objectify-cli/package.json` and all
 five `npm/<platform>/package.json` files to the same value, and update the
-`optionalDependencies` versions in `npm/objectify/package.json` to match
-(pinned exact, not a caret range — see `npm/objectify/README.md`). Commit
+`optionalDependencies` versions in `npm/objectify-cli/package.json` to match
+(pinned exact, not a caret range — see `npm/objectify-cli/README.md`). Commit
 that as its own PR, merge, then `gh release create v<version>` — the
 published-release event triggers `.github/workflows/release.yml`, which
 cross-compiles the binary for each platform, populates each `npm/<platform>`
 package with its binary + `checksums.json`, and publishes all six npm
 packages with `--provenance`. Also exposed as `workflow_dispatch` for
 re-running a single failed platform's publish step without redoing the
-whole release. `packages/objectify-js` publishes separately via
-`.github/workflows/objectify-js-publish.yml`, gated on the npm-idempotency
-guard (skips if the version is already on npm).
+whole release. `packages/objectify` (the TypeScript adapter) publishes
+separately via `.github/workflows/objectify-publish.yml`, gated on the
+npm-idempotency guard (skips if the version is already on npm).
