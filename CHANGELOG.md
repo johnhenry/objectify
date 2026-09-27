@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
+## [0.0.1] — @johnhenry/objectify docs fixes (2026-09-27)
+
+Two documentation-accuracy bugs in `packages/objectify/README.md`, caught by
+a cross-library audit, left over from before the CLI/adapter rename in the
+`0.0.0` entry just below:
+
+- **Broken CLI install instructions.** The "install the CLI" snippet told
+  readers to run `cargo install --path .` — a command that only works
+  inside a checkout of this monorepo's Rust crate (and this project isn't
+  published to crates.io at all, per `AGENTS.md`), so it failed for every
+  actual npm consumer of this package. Replaced with
+  `npm install -g @johnhenry/objectify-cli`, the prebuilt-binary install
+  path this project actually ships and documents everywhere else (see root
+  `README.md`).
+- **Node version mismatch.** The README said "Requires Node.js 22+",
+  quoting `better-sqlite3`'s own floor, but `package.json`'s
+  `engines.node` has required `>=26.0.0` since the family-wide policy bump
+  in `2385f22` — verified still true for `better-sqlite3@13.x` (its
+  published `engines.node` is `>=22`, so 26+ is this project's own,
+  stricter choice, not a dependency constraint) and already enforced by
+  `objectify-ci.yml`'s Node 26 test matrix. Fixed the README to say 26+ and
+  to attribute the floor correctly to policy rather than to
+  `better-sqlite3`.
+
+No code changes; `engines.node` was confirmed correct as-is and left
+untouched.
+
 ## 0.0.0 — npm package rename: the CLI shim is now `objectify-cli` (2026-09-26)
 
 The CLI's npm install shim and its five platform packages are renamed from

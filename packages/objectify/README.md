@@ -22,13 +22,17 @@ Talks directly to the same SQLite database as the `objectify` CLI. No shelling o
 npm install @johnhenry/objectify
 ```
 
-Requires Node.js 22+ (matches [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3)'s minimum supported version — its N-API prebuilds are what let this package install without a native compiler toolchain).
+Requires Node.js 26+ — the `@johnhenry` family-wide minimum-supported-version
+policy, not a constraint from this package's own dependencies:
+[`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3) itself only
+requires Node 22+, and its N-API prebuilds are what let this package install
+without a native compiler toolchain either way.
 
 Requires an initialized objectify store. If you haven't already:
 
 ```sh
-# install the CLI
-cargo install --path .
+# install the CLI (prebuilt binary, no Rust toolchain required)
+npm install -g @johnhenry/objectify-cli
 
 # create a store
 objectify init
