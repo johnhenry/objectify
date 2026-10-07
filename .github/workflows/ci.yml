@@ -6,6 +6,9 @@ on:
   pull_request:
 
 jobs:
+  workflow-lint:
+    uses: johnhenry/workflows/.github/workflows/workflow-lint.yml@v1
+
   test:
     name: cargo test (${{ matrix.name }})
     strategy:
