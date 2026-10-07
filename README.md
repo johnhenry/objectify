@@ -1316,6 +1316,29 @@ that trust boundary.
 
 ---
 
+## Releasing
+
+Publishing follows the family model, [main is the release branch](https://github.com/johnhenry/workflows#the-publish-model-main-is-the-release-branch):
+both publish workflows run on every push to `main`, publish only what is new on npm,
+and create the tag + GitHub Release as by-products. Nobody creates tags or Releases by
+hand to cause a publish.
+
+- **`@johnhenry/objectify`** (TypeScript adapter, `packages/objectify`) uses
+  [Changesets](https://github.com/changesets/changesets). Run `npm run changeset` in a
+  PR that changes it; merging opens/updates a "chore: version packages" PR, and merging
+  *that* publishes (`.github/workflows/objectify-publish.yml`).
+- **`@johnhenry/objectify-cli` + the platform packages** (`npm/*`, deliberately not npm
+  workspaces) are versioned by hand: bump `version` in `npm/objectify-cli/package.json`
+  and every enabled `npm/<platform>/package.json` (plus the pinned
+  `optionalDependencies`) in one PR. Merging it to `main` makes
+  `.github/workflows/release.yml` cross-compile the binaries and publish; pushes with no
+  new version skip the builds.
+
+The two workflow filenames are the npm trusted-publisher entry points -- don't rename
+them.
+
+---
+
 ## License
 
 MIT

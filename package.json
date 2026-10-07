@@ -13,9 +13,13 @@
   "scripts": {
     "build": "turbo run build",
     "test": "turbo run build && npm test --workspace @johnhenry/objectify",
-    "pack:dry-run": "npm pack --dry-run --workspaces"
+    "pack:dry-run": "npm pack --dry-run --workspaces",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "npm run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.1",
     "turbo": "^2.0.0"
   }
 }

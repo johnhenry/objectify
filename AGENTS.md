@@ -89,15 +89,11 @@ A genuinely fresh clone before a release:
   cross-compiled binary and a generated `checksums.json` only inside
   `release.yml`; don't add them to root `workspaces` or expect `npm run
   build` to touch them.
-- **`CONTRIBUTING.md`'s "Making a release" section is stale.** It describes
-  `git tag v0.x.y && git push --tags` and four platforms
-  (`x86_64`/`aarch64-linux`, `x86_64`/`aarch64-darwin`); the actual
-  mechanism is a **published GitHub Release** (`release.yml`'s trigger,
-  also exposed as `workflow_dispatch` for retries) building **five**
+- **`CONTRIBUTING.md`'s "Making a release" section** now points at "Releasing" in
+  `README.md`/this file. The mechanism is a **version bump merged to main**
+  (`release.yml` runs on push to main, also `workflow_dispatch` for retries) building **five**
   platforms including `win32-x64` — macOS is currently disabled in the
-  build/publish workflow (see `release.yml`'s own header comment), not the
-  four CONTRIBUTING.md lists. Follow `release.yml` and this file, not
-  CONTRIBUTING.md's release steps, until that file is updated separately.
+  build/publish workflow (see `release.yml`'s own header comment).
 - **The Rust crate's version (`Cargo.toml`, currently `0.1.0`) and the npm
   packages' version (currently `0.0.0`, restarted on npm-scope migration)
   are independent version lines.** Don't assume bumping one bumps the
@@ -134,12 +130,17 @@ The crate is not published to crates.io; its version is what
 five `npm/<platform>/package.json` files to the same value, and update the
 `optionalDependencies` versions in `npm/objectify-cli/package.json` to match
 (pinned exact, not a caret range — see `npm/objectify-cli/README.md`). Commit
-that as its own PR, merge, then `gh release create v<version>` — the
-published-release event triggers `.github/workflows/release.yml`, which
-cross-compiles the binary for each platform, populates each `npm/<platform>`
-package with its binary + `checksums.json`, and publishes all six npm
-packages with `--provenance`. Also exposed as `workflow_dispatch` for
-re-running a single failed platform's publish step without redoing the
-whole release. `packages/objectify` (the TypeScript adapter) publishes
-separately via `.github/workflows/objectify-publish.yml`, gated on the
-npm-idempotency guard (skips if the version is already on npm).
+that as its own PR and merge it to `main` -- that merge is the release (publish
+model: main is the release branch; no `gh release create`). `release.yml` runs on every
+push to main; a `check` job asks npm whether any CLI/platform version is new and, only
+if so, cross-compiles the binary for each platform, populates each `npm/<platform>`
+package with its binary + `checksums.json`, and publishes the npm packages with
+`--provenance`, then creates the `@johnhenry/objectify-cli@<version>` tag + GitHub
+Release as by-products. Also exposed as `workflow_dispatch` for re-running after a
+failed platform publish. `packages/objectify` (the TypeScript adapter) uses Changesets:
+`npm run changeset` in a PR; merging to main makes
+`.github/workflows/objectify-publish.yml` open a "chore: version packages" PR, and
+merging that publishes (versions already on npm are skipped) and tags + releases
+`@johnhenry/objectify@<version>`. **Never rename `release.yml` or
+`objectify-publish.yml`**: npm trusted publishing trusts one workflow filename per
+package.
