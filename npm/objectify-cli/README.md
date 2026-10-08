@@ -37,7 +37,7 @@ npx @johnhenry/objectify-cli --help
 
 This package is a thin ~100-line Node.js shim (`bin/objectify.js`). It ships
 no compiled code itself — it detects your OS/architecture at runtime and
-delegates to the real binary, which lives in one of five tiny per-platform
+delegates to the real binary, which lives in one of six tiny per-platform
 packages:
 
 | Package | Platform |
@@ -46,6 +46,7 @@ packages:
 | `@johnhenry/objectify-cli-darwin-x64` | macOS, Intel |
 | `@johnhenry/objectify-cli-linux-x64` | Linux, x64 (glibc) |
 | `@johnhenry/objectify-cli-linux-arm64` | Linux, arm64 (glibc) |
+| `@johnhenry/objectify-cli-linux-x64-musl` | Linux, x64 (musl, e.g. Alpine) |
 | `@johnhenry/objectify-cli-win32-x64` | Windows, x64 |
 
 `npm install` only downloads the one matching your machine — it's listed as
@@ -58,9 +59,11 @@ error messages if the right platform package didn't get installed.
 
 ## Platform support
 
-Linux `x64`/`arm64` builds target glibc; there is currently no separate
-`musl` build (e.g. for Alpine-based Docker images). If you need one, please
-open an issue.
+Linux `x64`/`arm64` builds target glibc. Linux `x64` also has a separate
+`musl` build for Alpine-based images; `bin/objectify.js` detects musl at
+runtime (via `process.report`, falling back to `ldd --version`) and picks it
+automatically. There is no `arm64` musl build yet; Alpine on arm64 is
+unsupported.
 
 ## Integrity
 

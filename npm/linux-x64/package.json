@@ -1,6 +1,6 @@
 {
   "name": "@johnhenry/objectify-cli-linux-x64",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "objectify CLI binary for Linux (x64, glibc)",
   "repository": {
     "type": "git",
@@ -12,6 +12,7 @@
   "os": ["linux"],
   "cpu": ["x64"],
   "files": ["bin"],
+  "libc": ["glibc"],
   "publishConfig": {
     "access": "public"
   }

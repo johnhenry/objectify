@@ -8,6 +8,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ## Unreleased
 
+### Added
+
+- **musl (Alpine) support for the npm CLI (issue #9).** New
+  `@johnhenry/objectify-cli-linux-x64-musl` platform package, built for
+  `x86_64-unknown-linux-musl`; the `@johnhenry/objectify-cli` shim detects musl
+  at runtime (`process.report`, falling back to `ldd --version`) and resolves it.
+  The glibc Linux packages now declare `"libc": ["glibc"]` so npm installs only
+  the matching one. `linux-arm64` musl is not built yet. CLI/platform packages
+  bumped to `0.0.1` (the shim's `optionalDependencies` pin the new package).
+
+---
+
+## Unreleased
+
 ### Security
 
 - **Unsanitized `--class` name enabled path traversal to arbitrary file

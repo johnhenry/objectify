@@ -1,16 +1,17 @@
 {
-  "name": "@johnhenry/objectify-cli-win32-x64",
+  "name": "@johnhenry/objectify-cli-linux-x64-musl",
   "version": "0.0.1",
-  "description": "objectify CLI binary for Windows (x64)",
+  "description": "objectify CLI binary for Linux (x64, musl / Alpine)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/johnhenry/objectify.git",
-    "directory": "npm/win32-x64"
+    "directory": "npm/linux-x64-musl"
   },
   "homepage": "https://opensource.johnhenry.me/objectify/",
   "license": "MIT",
-  "os": ["win32"],
+  "os": ["linux"],
   "cpu": ["x64"],
+  "libc": ["musl"],
   "files": ["bin"],
   "publishConfig": {
     "access": "public"
