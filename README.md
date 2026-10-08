@@ -1327,6 +1327,11 @@ hand to cause a publish.
   [Changesets](https://github.com/changesets/changesets). Run `npm run changeset` in a
   PR that changes it; merging opens/updates a "chore: version packages" PR, and merging
   *that* publishes (`.github/workflows/objectify-publish.yml`).
+  The Version Packages PR is opened with `GITHUB_TOKEN`, so the repo setting *Settings >
+  Actions > General > "Allow GitHub Actions to create and approve pull requests"* must be
+  on (`gh api -X PUT repos/johnhenry/objectify/actions/permissions/workflow -f
+  default_workflow_permissions=read -F can_approve_pull_request_reviews=true`); the job
+  already has `pull-requests: write`.
 - **`@johnhenry/objectify-cli` + the platform packages** (`npm/*`, deliberately not npm
   workspaces) are versioned by hand: bump `version` in `npm/objectify-cli/package.json`
   and every enabled `npm/<platform>/package.json` (plus the pinned
