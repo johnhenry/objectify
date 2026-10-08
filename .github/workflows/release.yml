@@ -14,7 +14,7 @@ name: Release (build binaries + publish npm packages)
 # Versioning: this workflow does NOT bump versions, and these packages are deliberately
 # not npm workspaces (so Changesets, which publishes @johnhenry/objectify from
 # objectify-publish.yml, does not manage them). To release: bump `version` in
-# npm/objectify-cli/package.json AND all five npm/<platform>/package.json files to the
+# npm/objectify-cli/package.json AND all six npm/<platform>/package.json files to the
 # same value, and update the `optionalDependencies` versions in
 # npm/objectify-cli/package.json to match (they're pinned exact, not with a caret range
 # -- see npm/objectify-cli/README.md for why). Merge that PR to main; that is the release.
@@ -65,7 +65,7 @@ jobs:
         run: |
           needed=false
           # Keep in sync with the build matrix (darwin disabled, see top of file).
-          for dir in objectify-cli linux-x64 linux-arm64 win32-x64; do
+          for dir in objectify-cli linux-x64 linux-x64-musl linux-arm64 win32-x64; do
             name=$(node -p "require('./npm/${dir}/package.json').name")
             version=$(node -p "require('./npm/${dir}/package.json').version")
             if npm view "$name@$version" version >/dev/null 2>&1; then
@@ -97,6 +97,12 @@ jobs:
           - name: linux-x64
             os: ubuntu-latest
             binary: objectify
+          # Static musl binary for Alpine & co.; built on the glibc runner
+          # via the musl target (see the `target` handling in the steps below).
+          - name: linux-x64-musl
+            os: ubuntu-latest
+            binary: objectify
+            target: x86_64-unknown-linux-musl
           - name: linux-arm64
             os: ubuntu-24.04-arm
             binary: objectify
@@ -108,21 +114,43 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Matrix entries without a `target` build for the host (target/release);
+      # with one, cargo emits to target/<triple>/release.
+      - name: Resolve cargo output dir
+        id: out
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            echo "flags=--target ${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+            echo "dir=target/${{ matrix.target }}/release" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=" >> "$GITHUB_OUTPUT"
+            echo "dir=target/release" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: cargo build --release
-        run: cargo build --release --locked
+        run: cargo build --release --locked ${{ steps.out.outputs.flags }}
 
       - name: cargo test --release
-        run: cargo test --release --locked
+        run: cargo test --release --locked ${{ steps.out.outputs.flags }}
 
       - name: Stage binary + checksum for upload
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p staging
-          cp "target/release/${{ matrix.binary }}" "staging/${{ matrix.binary }}"
+          cp "${{ steps.out.outputs.dir }}/${{ matrix.binary }}" "staging/${{ matrix.binary }}"
           # sha256sum is not available on macOS runners by default; shasum is.
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "staging/${{ matrix.binary }}" | awk '{print $1}' > "staging/${{ matrix.binary }}.sha256"
@@ -166,6 +194,7 @@ jobs:
             # [darwin-arm64]=objectify
             # [darwin-x64]=objectify
             [linux-x64]=objectify
+            [linux-x64-musl]=objectify
             [linux-arm64]=objectify
             [win32-x64]=objectify.exe
           )
@@ -201,6 +230,7 @@ jobs:
             # [darwin-arm64]=objectify
             # [darwin-x64]=objectify
             [linux-x64]=objectify
+            [linux-x64-musl]=objectify
             [linux-arm64]=objectify
             [win32-x64]=objectify.exe
           )

@@ -4,7 +4,7 @@
 /**
  * Platform-detection shim for the `objectify` CLI.
  *
- * The real compiled binary lives in one of five tiny per-platform npm
+ * The real compiled binary lives in one of six tiny per-platform npm
  * packages (each published from CI, one per Rust build target) and is
  * installed via `optionalDependencies` — npm only installs the ones whose
  * `os`/`cpu` fields match the current machine, so exactly one (usually)
@@ -35,8 +35,44 @@ const PACKAGES = {
   'darwin x64': '@johnhenry/objectify-cli-darwin-x64',
   'linux arm64': '@johnhenry/objectify-cli-linux-arm64',
   'linux x64': '@johnhenry/objectify-cli-linux-x64',
+  'linux x64 musl': '@johnhenry/objectify-cli-linux-x64-musl',
   'win32 x64': '@johnhenry/objectify-cli-win32-x64',
 };
+
+// True when running on a musl libc (Alpine and friends). Same approach as
+// esbuild/@swc wrappers: glibc builds of Node expose `glibcVersionRuntime` in
+// the diagnostic report header; musl builds do not. Falls back to scanning the
+// `ldd` banner (musl's prints "musl libc") if the report is unavailable.
+function isMusl() {
+  if (process.platform !== 'linux') {
+    return false;
+  }
+  try {
+    const report = process.report && process.report.getReport();
+    if (report) {
+      const header = typeof report === 'string' ? JSON.parse(report).header : report.header;
+      if (header) {
+        return !header.glibcVersionRuntime;
+      }
+    }
+  } catch (e) {
+    // fall through to ldd
+  }
+  try {
+    const out = spawnSync('ldd', ['--version'], { encoding: 'utf8' });
+    return /musl/i.test(`${out.stdout || ''}${out.stderr || ''}`);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Maps (platform, arch, musl) to the platform package name, or undefined.
+function platformPackage(platform, arch, musl) {
+  if (platform === 'linux' && musl) {
+    return PACKAGES[`${platform} ${arch} musl`];
+  }
+  return PACKAGES[`${platform} ${arch}`];
+}
 
 function binSubpath(platform) {
   return platform === 'win32' ? 'bin/objectify.exe' : 'bin/objectify';
@@ -53,8 +89,9 @@ function resolveBinaryPath() {
 
   const platform = process.platform;
   const arch = process.arch;
-  const key = `${platform} ${arch}`;
-  const pkg = PACKAGES[key];
+  const musl = isMusl();
+  const key = `${platform} ${arch}${musl ? ' (musl)' : ''}`;
+  const pkg = platformPackage(platform, arch, musl);
 
   if (!pkg) {
     fail(
@@ -93,7 +130,7 @@ function resolveBinaryPath() {
 // release.yml) pins the expected sha256 of each platform's binary at the
 // version this package was published with. Verifying it here means a
 // compromised npm token, CI runner, or registry mirror can't silently swap
-// in a different binary for one of the five platform packages without also
+// in a different binary for one of the six platform packages without also
 // tripping this check (short of also compromising the main package's
 // checksums.json in the same way, which `npm publish --provenance` in the
 // release workflow independently guards against).
@@ -179,4 +216,9 @@ function main() {
   process.exit(result.status === null ? 1 : result.status);
 }
 
-main();
+if (require.main === module) {
+  main();
+} else {
+  // Exposed for the smoke test (test/resolve.test.js); not a public API.
+  module.exports = { PACKAGES, platformPackage, isMusl };
+}
