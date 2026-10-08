@@ -2883,6 +2883,30 @@ mod tests {
     }
 
     #[test]
+    fn validate_class_name_rejects_absolute_encoded_and_nul_variants() {
+        for bad in [
+            "/tmp/evil",
+            "C:\\evil",
+            "%2e%2e%2fevil",
+            "..%2fevil",
+            "%2Fetc%2Fpasswd",
+            "evil\0",
+            "evil\0.py",
+            ".",
+            "a b",
+            "a.b",
+        ] {
+            let err = validate_class_name(bad).unwrap_err();
+            assert!(
+                err.to_string().contains("invalid class name"),
+                "expected rejection for {:?}, got: {}",
+                bad,
+                err
+            );
+        }
+    }
+
+    #[test]
     fn validate_class_name_rejects_empty() {
         let err = validate_class_name("").unwrap_err();
         assert!(err.to_string().contains("empty"));

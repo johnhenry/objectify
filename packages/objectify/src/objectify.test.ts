@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { Objectify } from './objectify.js';
 import { openDb } from './db.js';
+import { findClassFile } from './runner.js';
 
 function withStore(fn: (store: Objectify) => void): void {
   const dir = mkdtempSync(join(tmpdir(), 'objectify-test-'));
@@ -204,4 +205,65 @@ test('openDb rejects a database with a mismatched schema version', () => {
 
     assert.throws(() => openDb(dbPath), /incompatible objectify database/);
   });
+});
+
+// ── class-name validation / path traversal (issue #7) ─────────────────────
+
+const BAD_CLASS_NAMES = [
+  '../evil',
+  '../../etc/passwd',
+  'a/b',
+  'a\\b',
+  '..',
+  '.',
+  '/tmp/evil',
+  'C:\\evil',
+  '%2e%2e%2fevil',
+  '..%2fevil',
+  '%2Fetc%2Fpasswd',
+  'evil\0',
+  'evil\0.py',
+  'a b',
+  '',
+];
+
+test('create rejects class names that could escape the classes directory', () => {
+  withStore((store) => {
+    for (const bad of BAD_CLASS_NAMES) {
+      assert.throws(
+        () => store.create({ class: bad }),
+        /invalid class name|cannot be empty/,
+        `expected rejection for ${JSON.stringify(bad)}`,
+      );
+    }
+    assert.equal(store.list().length, 0);
+  });
+});
+
+test('create accepts simple identifier class names', () => {
+  withStore((store) => {
+    store.create({ class: 'TaskList' });
+    store.create({ class: 'task_list-2' });
+  });
+});
+
+test('findClassFile never resolves outside the classes directory', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'objectify-test-'));
+  try {
+    const classes = join(dir, 'classes');
+    mkdirSync(classes);
+    writeFileSync(join(dir, 'evil.py'), '');
+    writeFileSync(join(dir, 'evil.ts'), '');
+    for (const bad of [...BAD_CLASS_NAMES, `../${'evil'}`]) {
+      assert.throws(
+        () => findClassFile(classes, bad),
+        /invalid class name|cannot be empty/,
+        `expected rejection for ${JSON.stringify(bad)}`,
+      );
+    }
+    writeFileSync(join(classes, 'Good.py'), '');
+    assert.equal(findClassFile(classes, 'Good').lang, 'py');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

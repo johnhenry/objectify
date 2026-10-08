@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import type Database from 'better-sqlite3';
+import { validateClassName } from './runner.js';
 import {
   openDb,
   resolveId,
@@ -47,6 +48,9 @@ export class Objectify {
   }
 
   create(opts?: CreateOptions): string {
+    if (opts?.class !== undefined && opts.class !== null) {
+      validateClassName(opts.class);
+    }
     const id = newId();
     const now = new Date().toISOString();
     const expiresAt = opts?.expire
