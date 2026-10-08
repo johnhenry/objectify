@@ -252,6 +252,23 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify platform packages are on the registry
+        id: platform-specs
+        shell: bash
+        run: |
+          {
+            echo "specs<<EOF"
+            for platform in linux-x64 linux-x64-musl linux-arm64 win32-x64; do
+              node -p "const p=require('./npm/${platform}/package.json'); p.name+'@'+p.version"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify published versions are on the registry
+        uses: johnhenry/workflows/.github/actions/verify-published@v1
+        with:
+          packages: ${{ steps.platform-specs.outputs.specs }}
+
   publish-main-package:
     name: publish @johnhenry/objectify-cli
     needs: publish-platform-packages
@@ -290,6 +307,12 @@ jobs:
         working-directory: npm/objectify-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify main package is on the registry
+        if: steps.publish.outputs.published == 'true'
+        uses: johnhenry/workflows/.github/actions/verify-published@v1
+        with:
+          packages: ${{ steps.publish.outputs.tag }}
 
       - name: Tag and GitHub Release (by-product)
         if: steps.publish.outputs.published == 'true'
