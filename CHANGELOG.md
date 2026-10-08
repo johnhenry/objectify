@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
+## Unreleased
+
+### Security
+
+- **Unsanitized `--class` name enabled path traversal to arbitrary file
+  execution (issue #7, MEDIUM).** A class name was joined directly onto the
+  classes directory (`<name>.ts` / `<name>.py`) with no validation, so
+  `objectify create --class '../../../../tmp/x'` followed by
+  `objectify use <id> <method>` would execute `/tmp/x.py` (or `.ts`) from
+  outside the classes directory. The name was also interpolated into the
+  generated Python/TypeScript runner source.
+  - **Affected:** any build of the Rust CLI from before commit `35c7b68`
+    (2026-08-26, PR #10), i.e. self-built/GitHub-release binaries from that
+    period. **No npm release of `@johnhenry/objectify-cli` is affected**:
+    the first npm publication (`0.0.0`, 2026-09-26) already contains the fix.
+    The TypeScript adapter `@johnhenry/objectify` `0.0.0` and `0.0.1`
+    **are affected**: its class lookup (`findClassFile`) and
+    `Objectify.create({ class })` did not validate the name.
+  - **Fix:** the CLI validates names against `[A-Za-z0-9_-]+` at intake and
+    at lookup (`validate_class_name`, since PR #10); the adapter now does the
+    same (patch release of `@johnhenry/objectify`). Regression tests cover
+    `../`, absolute paths, Windows paths, URL-encoded separators, NUL bytes,
+    dots and spaces in both implementations.
+
+---
+
 ## [0.0.1] — @johnhenry/objectify docs fixes (2026-09-27)
 
 Two documentation-accuracy bugs in `packages/objectify/README.md`, caught by
