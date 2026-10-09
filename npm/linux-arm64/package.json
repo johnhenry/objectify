@@ -1,6 +1,6 @@
 {
   "name": "@johnhenry/objectify-cli-linux-arm64",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "objectify CLI binary for Linux (arm64, glibc)",
   "repository": {
     "type": "git",
