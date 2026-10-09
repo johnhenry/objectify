@@ -1,6 +1,6 @@
 {
   "name": "@johnhenry/objectify-cli-darwin-x64",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "objectify CLI binary for macOS (Intel / x64)",
   "repository": {
     "type": "git",
