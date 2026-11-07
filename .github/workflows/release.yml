@@ -23,7 +23,7 @@ name: Release (build binaries + publish npm packages)
 # do not rename it.
 #
 # macOS ENABLED again 2026-10-08. It was disabled 2026-08-27 because hosted macOS
-# runners showed 1+ hour queue times. darwin-arm64 builds on hosted `macos-14` and
+# runners showed 1+ hour queue times. darwin-arm64 builds on hosted `macos-15` and
 # darwin-x64 on `macos-15-intel` (`macos-13` was retired by GitHub). If queue times
 # regress, the darwin entries live in FOUR places that must move together:
 # (1) the `check` job's directory list, (2) the `build` matrix, (3)
@@ -81,7 +81,7 @@ jobs:
       matrix:
         include:
           - name: darwin-arm64
-            os: macos-14
+            os: macos-15 # arm64; GitHub no longer serves macos-14
             binary: objectify
           - name: darwin-x64
             os: macos-15-intel
