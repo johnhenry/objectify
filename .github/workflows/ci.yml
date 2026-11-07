@@ -22,7 +22,7 @@ jobs:
           - name: windows-x64
             os: windows-latest
           - name: darwin-arm64
-            os: macos-14
+            os: macos-15 # arm64; GitHub no longer serves macos-14
           - name: darwin-x64
             os: macos-15-intel
     runs-on: ${{ matrix.os }}
