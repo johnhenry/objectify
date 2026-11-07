@@ -1,0 +1,39 @@
+name: objectify CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/objectify/**"
+      - ".github/workflows/objectify-ci.yml"
+  pull_request:
+    paths:
+      - "packages/objectify/**"
+      - ".github/workflows/objectify-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # engines.node >=26.0.0 -- test the floor version directly rather
+        # than a matrix of now-unsupported older majors.
+        node-version: [26]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      # Run from the workspace root against the root package-lock.json —
+      # objectify is an npm workspace member, not a standalone package.
+      - name: Install
+        run: npm ci --workspace @johnhenry/objectify
+
+      - name: Build
+        run: npm run build --workspace @johnhenry/objectify
+
+      - name: Test
+        run: npm test --workspace @johnhenry/objectify

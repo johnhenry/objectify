@@ -1,5 +1,11 @@
 # objectify
 
+[![npm version](https://img.shields.io/npm/v/%40johnhenry%2Fobjectify-cli.svg)](https://www.npmjs.com/package/@johnhenry/objectify-cli)
+[![CI](https://github.com/johnhenry/objectify/actions/workflows/ci.yml/badge.svg)](https://github.com/johnhenry/objectify/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/%40johnhenry%2Fobjectify-cli.svg)](LICENSE)
+
+Full documentation: [opensource.johnhenry.me/objectify](https://opensource.johnhenry.me/objectify/)
+
 Turn a TypeScript or Python class into a CLI tool. Instantly.
 
 Write a class. Drop it in a folder. Every method becomes a shell command. Every call takes JSON arguments. Every write is versioned. State is persistent, optional, and backed by SQLite. The whole thing is a single binary — no server, no SDK, no configuration.
@@ -24,11 +30,81 @@ objectify log 3fa8
 # 2        add       1 hour ago
 ```
 
+## Contents
+
+- [Installation](#installation)
+  - [Optional: Deno (for TypeScript classes)](#optional-deno-for-typescript-classes)
+  - [Optional: Python 3 (for Python classes)](#optional-python-3-for-python-classes)
+- [Quick start](#quick-start)
+- [IDs](#ids)
+- [Directory resolution](#directory-resolution)
+- [CLI reference](#cli-reference)
+  - [`objectify init`](#objectify-init)
+  - [`objectify create`](#objectify-create)
+  - [`objectify destroy`](#objectify-destroy)
+  - [`objectify inspect`](#objectify-inspect)
+  - [`objectify list`](#objectify-list)
+  - [`objectify use <id> get`](#objectify-use-id-get)
+  - [`objectify use <id> set`](#objectify-use-id-set)
+  - [`objectify use <id> <method>`](#objectify-use-id-method)
+  - [`objectify log`](#objectify-log)
+  - [`objectify diff`](#objectify-diff)
+  - [`objectify rewind`](#objectify-rewind)
+  - [`objectify fork`](#objectify-fork)
+  - [`objectify gc`](#objectify-gc)
+- [Listing classes](#listing-classes)
+  - [`objectify classes`](#objectify-classes)
+- [Writing classes](#writing-classes)
+  - [TypeScript](#typescript)
+  - [Python](#python)
+  - [Calling methods with input](#calling-methods-with-input)
+- [Schema validation](#schema-validation)
+- [Class permissions](#class-permissions)
+  - [Path tokens](#path-tokens)
+- [Class introspection](#class-introspection)
+- [Shell aliases](#shell-aliases)
+- [Designed for agents](#designed-for-agents)
+  - [Why agents need this](#why-agents-need-this)
+  - [Agent usage patterns](#agent-usage-patterns)
+  - [The agent integration model](#the-agent-integration-model)
+- [Comparison with Cloudflare Durable Objects](#comparison-with-cloudflare-durable-objects)
+  - [What they share](#what-they-share)
+  - [Where they diverge](#where-they-diverge)
+  - [When to use which](#when-to-use-which)
+  - [The philosophical difference](#the-philosophical-difference)
+- [Comparison with MCP (Model Context Protocol)](#comparison-with-mcp-model-context-protocol)
+  - [What MCP gives you](#what-mcp-gives-you)
+  - [What objectify gives you](#what-objectify-gives-you)
+  - [Side-by-side comparison](#side-by-side-comparison)
+  - [The key differences](#the-key-differences)
+  - [What about external services?](#what-about-external-services)
+  - [When to use MCP](#when-to-use-mcp)
+  - [When to use objectify](#when-to-use-objectify)
+  - [Using them together](#using-them-together)
+- [Output contract](#output-contract)
+- [SQLite schema](#sqlite-schema)
+- [Architecture](#architecture)
+- [Security model](#security-model)
+- [License](#license)
+
 ---
 
 ## Installation
 
-Requires [Rust](https://rustup.rs) 1.70+.
+The easiest way, if you have Node.js 18+:
+
+```sh
+npm install -g @johnhenry/objectify-cli
+# or run it without installing:
+npx @johnhenry/objectify-cli --help
+```
+
+This installs a small platform-detection shim plus a prebuilt binary for
+your OS/architecture — no Rust toolchain required. See
+[`npm/objectify-cli/README.md`](./npm/objectify-cli/README.md) for how this works and
+which platforms currently ship a prebuilt binary.
+
+Or build from source, if you have [Rust](https://rustup.rs) 1.70+:
 
 ```sh
 git clone <repo>
@@ -611,7 +687,15 @@ All fields are optional. Absent = denied. `true` grants the Deno wildcard for th
 | `run` | `true` \| `["binary", ...]` | Subprocess execution |
 | `sys` | `["osRelease", ...]` | System info |
 
-**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes.
+**Python classes** run as a normal Python subprocess with no sandboxing. `class.json` is ignored for Python classes. Because there is no permission model to opt into, objectify requires an explicit `--allow-unsandboxed-python` flag before it will execute a Python class at all — on `objectify create --class=<Name>` (schema extraction runs the file) and on `objectify use <id> --allow-unsandboxed-python <method>` (method calls). Omitting the flag fails fast with a clear error instead of silently running unrestricted code:
+
+```
+objectify create "tasks" --class=TaskList        # TypeScript — no flag needed
+objectify create "tasks" --class=PyTaskList --allow-unsandboxed-python
+objectify use 3fa8 --allow-unsandboxed-python addTask -p:title "write tests"
+```
+
+If you need real sandboxing for untrusted class code, prefer TypeScript classes — Python classes should only be used with code you trust as much as this binary itself.
 
 ### Path tokens
 
@@ -1156,6 +1240,107 @@ Every write is a full snapshot. No delta storage — history is always directly 
 Class subprocesses are only invoked when calling a user-defined method. The common agent path — `get`, `set`, `list`, `log`, `rewind`, `fork` — never starts a subprocess.
 
 SQLite is linked statically (via `rusqlite` bundled feature). The binary has no runtime dependencies beyond optional `deno` or `python3` for class execution.
+
+---
+
+## Security model
+
+objectify runs user-written class code on every request whose command isn't
+one of the built-in state operations (`get`, `set`, `list`, `log`, `rewind`,
+`fork`) — see [Class permissions](#class-permissions) for the full
+permission model. This section is the guarantee/responsibility split for
+that trust boundary.
+
+**What objectify guarantees:**
+
+- **TypeScript class methods run under a default-deny Deno sandbox.**
+  `build_deno_flags` (`src/main.rs`) always emits `--allow-read` scoped to
+  exactly the classes directory and the Deno cache, and `--allow-env` scoped
+  to exactly three names (`OBJECTIFY_INPUT`, `OBJECTIFY_STATE`,
+  `OBJECTIFY_METHOD`) — nothing else is readable or visible by default. Every
+  additional grant (`net`, `write`, broader `read`/`env`, `run`, `sys`) must
+  be opted into explicitly, per class, in that class's own `class.json`.
+- **Python classes cannot run at all without an explicit, informed
+  opt-in.** Python has no sandbox to opt into — a Python class is a plain,
+  unrestricted subprocess with full filesystem/network/process access from
+  the moment it starts. objectify refuses to execute one at all — on both
+  `create --class=<Name>` (schema extraction) and `use <id> <method>` — until
+  `--allow-unsandboxed-python` is passed, and the fail-fast error
+  (`unsandboxed_python_error` in `src/main.rs`) states exactly what is being
+  granted, not just that a flag is missing.
+- **`class.json` grants are per-class, not global.** A permission set
+  written for one class has no effect on any other class's subprocess; each
+  invocation rebuilds its Deno flags from that specific class's sidecar
+  file.
+- **Class names are validated against path traversal.** A class name cannot
+  escape the classes directory to read or create a file elsewhere (fixed as
+  part of the security audit in #6/#7, see `CHANGELOG.md`).
+- **Published npm packages carry provenance**, and the binary distribution
+  ships a `checksums.json` verified before the platform-specific binary is
+  used (see `npm/objectify-cli/README.md`).
+
+**What is still yours:**
+
+- **TypeScript schema extraction runs with broader permissions than the
+  class's own method calls.** `extract_ts_schema` (`src/main.rs`) always
+  grants unconditional `--allow-env` and `--allow-net` — not scoped by
+  `class.json` — because `ts-json-schema-generator` needs them to resolve
+  `npm:`-specifier imports during extraction. This runs on every
+  `create --class=<Name>` for a TypeScript class, before any `class.json`
+  permission has a chance to apply. If you wouldn't grant a class network
+  access, its schema extraction step still has it.
+- **`class.json`'s grants, once made, are real grants — objectify does not
+  second-guess them.** `net: true` or a wide `read`/`write` path list is
+  passed straight to Deno; objectify's sandbox is Deno's sandbox, not an
+  additional layer on top of it. A bug in Deno's permission enforcement is a
+  bug in objectify's guarantee.
+- **Everything about Python classes.** Per the flag's own error text: "full
+  filesystem/network/process access." `--allow-unsandboxed-python` is
+  acknowledgment, not mitigation — there is no partial-trust mode for Python.
+  Use TypeScript classes for anything you would not otherwise run
+  unsandboxed on this machine.
+- **The state itself is unencrypted and unauthenticated at rest.** The
+  SQLite database (`objectify.db`) is a plain file with no access control of
+  its own beyond the filesystem permissions of the directory it lives in —
+  anyone who can read that file can read every version of every object ever
+  written to it, and anyone who can write to it can bypass objectify
+  entirely. objectify does not run as a server and has no network listener
+  of its own; this is a single-user, local-filesystem-trust model, not a
+  multi-tenant one.
+- **`npm:`/`import` package resolution inside a class is not vetted by
+  objectify.** A TypeScript class with `net` access can still pull down and
+  run arbitrary npm packages within whatever permissions `class.json`
+  granted; a Python class with `--allow-unsandboxed-python` can `pip
+  install` or `import` anything already on the host. objectify authenticates
+  nothing about the supply chain of code a class itself chooses to load.
+
+---
+
+## Releasing
+
+Publishing follows the family model, [main is the release branch](https://github.com/johnhenry/workflows#the-publish-model-main-is-the-release-branch):
+both publish workflows run on every push to `main`, publish only what is new on npm,
+and create the tag + GitHub Release as by-products. Nobody creates tags or Releases by
+hand to cause a publish.
+
+- **`@johnhenry/objectify`** (TypeScript adapter, `packages/objectify`) uses
+  [Changesets](https://github.com/changesets/changesets). Run `npm run changeset` in a
+  PR that changes it; merging opens/updates a "chore: version packages" PR, and merging
+  *that* publishes (`.github/workflows/objectify-publish.yml`).
+  The Version Packages PR is opened with `GITHUB_TOKEN`, so the repo setting *Settings >
+  Actions > General > "Allow GitHub Actions to create and approve pull requests"* must be
+  on (`gh api -X PUT repos/johnhenry/objectify/actions/permissions/workflow -f
+  default_workflow_permissions=read -F can_approve_pull_request_reviews=true`); the job
+  already has `pull-requests: write`.
+- **`@johnhenry/objectify-cli` + the platform packages** (`npm/*`, deliberately not npm
+  workspaces) are versioned by hand: bump `version` in `npm/objectify-cli/package.json`
+  and every enabled `npm/<platform>/package.json` (plus the pinned
+  `optionalDependencies`) in one PR. Merging it to `main` makes
+  `.github/workflows/release.yml` cross-compile the binaries and publish; pushes with no
+  new version skip the builds.
+
+The two workflow filenames are the npm trusted-publisher entry points -- don't rename
+them.
 
 ---
 

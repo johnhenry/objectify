@@ -25,11 +25,86 @@ CREATE INDEX IF NOT EXISTS idx_objects_expires ON objects(expires_at)
     WHERE expires_at IS NOT NULL;
 `;
 
+// Bumped whenever the schema shape changes in a way older/newer clients can't
+// safely interoperate with. NOTE: the `objectify` Rust CLI creates the same
+// tables but does not (yet) set `user_version`, so a freshly-created or
+// pre-existing CLI-created database has `user_version = 0` — that is treated
+// as "unversioned, unknown, verify structurally" rather than an incompatible
+// version, to avoid breaking every store that predates this check.
+const SCHEMA_VERSION = 1;
+
+const EXPECTED_COLUMNS: Record<'objects' | 'events', string[]> = {
+  objects: ['id', 'class', 'description', 'schema', 'created_at', 'expires_at'],
+  events: ['id', 'object_id', 'version', 'method', 'state', 'created_at'],
+};
+
+function tableColumns(db: Database.Database, table: string): string[] {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.map((r) => r.name);
+}
+
+/**
+ * Guard against silently operating on an incompatible or unrelated SQLite
+ * file. `CREATE TABLE IF NOT EXISTS` alone will happily "succeed" against a
+ * database with same-named tables but a different shape (or a future/older
+ * objectify schema version), only to fail confusingly deep inside a query
+ * later. This throws a clear, upfront error instead.
+ */
+function checkSchemaCompatibility(db: Database.Database, dbPath: string): void {
+  const existingTables = new Set(
+    (
+      db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('objects','events')",
+        )
+        .all() as { name: string }[]
+    ).map((r) => r.name),
+  );
+
+  if (existingTables.size === 0) {
+    // Fresh database (or fresh file) — nothing to verify yet.
+    return;
+  }
+
+  const incompatible = (reason: string): never => {
+    throw new Error(`incompatible objectify database at "${dbPath}": ${reason}`);
+  };
+
+  if (!existingTables.has('objects') || !existingTables.has('events')) {
+    incompatible(
+      `expected both "objects" and "events" tables, found only [${[...existingTables].join(', ')}]. ` +
+        `This file may not be an objectify database.`,
+    );
+  }
+
+  for (const table of ['objects', 'events'] as const) {
+    const actual = new Set(tableColumns(db, table));
+    const missing = EXPECTED_COLUMNS[table].filter((c) => !actual.has(c));
+    if (missing.length > 0) {
+      incompatible(
+        `"${table}" table exists but is missing expected column(s) [${missing.join(', ')}]. ` +
+          `This file may belong to a different application, or to an incompatible version of objectify.`,
+      );
+    }
+  }
+
+  const version = db.pragma('user_version', { simple: true }) as number;
+  if (version !== 0 && version !== SCHEMA_VERSION) {
+    incompatible(
+      `found schema version ${version}, expected ${SCHEMA_VERSION} (or 0, for a database ` +
+        `predating schema versioning). This file may belong to a newer or otherwise ` +
+        `incompatible version of objectify.`,
+    );
+  }
+}
+
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  checkSchemaCompatibility(db, dbPath);
   db.exec(SCHEMA_SQL);
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
   return db;
 }
 

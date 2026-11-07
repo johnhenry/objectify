@@ -6,6 +6,151 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
+## Unreleased
+
+### Added
+
+- **musl (Alpine) support for the npm CLI (issue #9).** New
+  `@johnhenry/objectify-cli-linux-x64-musl` platform package, built for
+  `x86_64-unknown-linux-musl`; the `@johnhenry/objectify-cli` shim detects musl
+  at runtime (`process.report`, falling back to `ldd --version`) and resolves it.
+  The glibc Linux packages now declare `"libc": ["glibc"]` so npm installs only
+  the matching one. `linux-arm64` musl is not built yet. CLI/platform packages
+  bumped to `0.0.1` (the shim's `optionalDependencies` pin the new package).
+
+---
+
+## Unreleased
+
+### Security
+
+- **Unsanitized `--class` name enabled path traversal to arbitrary file
+  execution (issue #7, MEDIUM).** A class name was joined directly onto the
+  classes directory (`<name>.ts` / `<name>.py`) with no validation, so
+  `objectify create --class '../../../../tmp/x'` followed by
+  `objectify use <id> <method>` would execute `/tmp/x.py` (or `.ts`) from
+  outside the classes directory. The name was also interpolated into the
+  generated Python/TypeScript runner source.
+  - **Affected:** any build of the Rust CLI from before commit `35c7b68`
+    (2026-08-26, PR #10), i.e. self-built/GitHub-release binaries from that
+    period. **No npm release of `@johnhenry/objectify-cli` is affected**:
+    the first npm publication (`0.0.0`, 2026-09-26) already contains the fix.
+    The TypeScript adapter `@johnhenry/objectify` `0.0.0` and `0.0.1`
+    **are affected**: its class lookup (`findClassFile`) and
+    `Objectify.create({ class })` did not validate the name.
+  - **Fix:** the CLI validates names against `[A-Za-z0-9_-]+` at intake and
+    at lookup (`validate_class_name`, since PR #10); the adapter now does the
+    same (patch release of `@johnhenry/objectify`). Regression tests cover
+    `../`, absolute paths, Windows paths, URL-encoded separators, NUL bytes,
+    dots and spaces in both implementations.
+
+---
+
+## [0.0.1] — @johnhenry/objectify docs fixes (2026-09-27)
+
+Two documentation-accuracy bugs in `packages/objectify/README.md`, caught by
+a cross-library audit, left over from before the CLI/adapter rename in the
+`0.0.0` entry just below:
+
+- **Broken CLI install instructions.** The "install the CLI" snippet told
+  readers to run `cargo install --path .` — a command that only works
+  inside a checkout of this monorepo's Rust crate (and this project isn't
+  published to crates.io at all, per `AGENTS.md`), so it failed for every
+  actual npm consumer of this package. Replaced with
+  `npm install -g @johnhenry/objectify-cli`, the prebuilt-binary install
+  path this project actually ships and documents everywhere else (see root
+  `README.md`).
+- **Node version mismatch.** The README said "Requires Node.js 22+",
+  quoting `better-sqlite3`'s own floor, but `package.json`'s
+  `engines.node` has required `>=26.0.0` since the family-wide policy bump
+  in `2385f22` — verified still true for `better-sqlite3@13.x` (its
+  published `engines.node` is `>=22`, so 26+ is this project's own,
+  stricter choice, not a dependency constraint) and already enforced by
+  `objectify-ci.yml`'s Node 26 test matrix. Fixed the README to say 26+ and
+  to attribute the floor correctly to policy rather than to
+  `better-sqlite3`.
+
+No code changes; `engines.node` was confirmed correct as-is and left
+untouched.
+
+## 0.0.0 — npm package rename: the CLI shim is now `objectify-cli` (2026-09-26)
+
+The CLI's npm install shim and its five platform packages are renamed from
+`@johnhenry/objectify`/`@johnhenry/objectify-<platform>` to
+`@johnhenry/objectify-cli`/`@johnhenry/objectify-cli-<platform>`. The plain
+`@johnhenry/objectify` name is now the TypeScript adapter package
+(`packages/objectify`, formerly published for a few minutes as
+`@johnhenry/objectify-js` before this correction) — a cleaner split now that
+both npm-side packages exist for real, rather than the CLI having first
+claim on the unqualified name just because it's the project's primary
+artifact. The actual CLI command you run is unaffected either way: it's
+still `objectify`, only the npm *package* name changed. No functional
+change to either package's code.
+
+## 0.0.0 — npm scope migration, Python support, and a security audit (2026-08-25 – 2026-08-26)
+
+The unscoped name `objectify` on npm belongs to an unrelated third party —
+this was never published under any name before. First npm distribution, as
+`@johnhenry/objectify` (the CLI, via a prebuilt-binary shim and five
+platform packages) and `@johnhenry/objectify-js` (a TypeScript adapter).
+Version restarts at `0.0.0`: a new address and era, not a maturity signal
+relative to the `0.1.0` Rust crate below, which is unaffected by the npm
+scope and continues to track its own version independently.
+
+Alongside the scope migration, this window added Python class support (not
+present in `0.1.0`) and closed four real findings from a security audit.
+
+### Security fixes
+
+- **Python class execution required no acknowledgment of its lack of
+  sandboxing.** Python classes run as plain, unrestricted subprocesses
+  (unlike TypeScript classes, which run under Deno's permission model) —
+  running one silently would mean full filesystem/network/process access
+  with no signal to the caller. `create`/`use` now refuse to execute a
+  Python class at all without an explicit `--allow-unsandboxed-python` flag,
+  failing fast with an error that states exactly what is being granted.
+  Fixed in 28a1fff (fixes #6, #7); shipped via PR #10.
+- **Class names were not validated against path traversal.** An unsanitized
+  `--class` name could escape the classes directory. `validate_class_name`
+  now rejects any class name containing a path separator or `..` segment,
+  checked at intake before the name reaches any filesystem operation. Fixed
+  in 28a1fff (fixes #6, #7); shipped via PR #10.
+- **Published npm packages carried no provenance or integrity
+  verification.** `release.yml` now publishes every package with
+  `npm publish --provenance`, and the binary distribution ships a
+  `checksums.json` manifest verified before a platform-specific binary is
+  used — see `npm/objectify/README.md`. Fixed in af0bc8a (fixes #5); shipped
+  via PR #10.
+- **`objectify-js`'s SQLite store did not check schema compatibility on
+  open.** Opening a store written by an incompatible version could silently
+  misread it. `objectify-js` now validates the store's schema on open and
+  fails clearly instead. Fixed in 9928334 (fixes #8); shipped via PR #10.
+
+### Added
+
+- Python class support: `DoBase[StateType]` classes using Pydantic v1/v2 or
+  plain dataclasses, with the same CLI surface as TypeScript classes (see
+  README, "Writing classes" → "Python").
+- `@johnhenry/objectify-js`, a TypeScript adapter package
+  (`packages/objectify-js`), adopted into the `@johnhenry` npm scope.
+- npm binary distribution: `@johnhenry/objectify` (a small Node shim) plus
+  five platform-specific optional-dependency packages
+  (`@johnhenry/objectify-{darwin,linux,win32}-{arm64,x64}`), so
+  `npm install -g @johnhenry/objectify` needs no Rust toolchain.
+- Runnable, self-checking examples for both the CLI and the JS adapter.
+- Class introspection (`objectify classes [<name>]`) and random hex object
+  IDs with git-style prefix resolution.
+- Starlight documentation site section at
+  [opensource.johnhenry.me/objectify](https://opensource.johnhenry.me/objectify/).
+
+### Housekeeping
+
+- CI: macOS dropped from the per-PR Rust test matrix (still built and
+  tested for real in `release.yml`, which produces the actual distributable
+  binaries) to avoid the scarcest/slowest-to-schedule hosted runners gating
+  every push. `publish.yml` (npm side) gained an idempotency guard that
+  skips a package already at its published version.
+
 ## [0.1.0] — 2026-03-12
 
 Initial release.

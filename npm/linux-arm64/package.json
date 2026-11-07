@@ -1,0 +1,19 @@
+{
+  "name": "@johnhenry/objectify-cli-linux-arm64",
+  "version": "0.0.2",
+  "description": "objectify CLI binary for Linux (arm64, glibc)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnhenry/objectify.git",
+    "directory": "npm/linux-arm64"
+  },
+  "homepage": "https://opensource.johnhenry.me/objectify/",
+  "license": "MIT",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["bin"],
+  "libc": ["glibc"],
+  "publishConfig": {
+    "access": "public"
+  }
+}

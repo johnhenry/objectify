@@ -1,0 +1,311 @@
+name: Release (build binaries + publish npm packages)
+
+# Runs on every push to main (fleet publish model: main is the release branch, see
+# johnhenry/workflows' README) and via workflow_dispatch (manual re-runs, e.g. a platform
+# package's publish step failed and needs retrying).
+#
+# A `check` job first asks npm whether @johnhenry/objectify-cli or any enabled platform
+# package has a version that is not on the registry yet. Almost every push says no, and
+# then the Rust cross-builds and publish jobs are skipped entirely (green, nothing
+# published). When the version bump lands on main it says yes, and the build + publish
+# jobs run; the `@johnhenry/objectify-cli@<version>` tag and a GitHub Release are
+# created as by-products after a successful publish.
+#
+# Versioning: this workflow does NOT bump versions, and these packages are deliberately
+# not npm workspaces (so Changesets, which publishes @johnhenry/objectify from
+# objectify-publish.yml, does not manage them). To release: bump `version` in
+# npm/objectify-cli/package.json AND all six npm/<platform>/package.json files to the
+# same value, and update the `optionalDependencies` versions in
+# npm/objectify-cli/package.json to match (they're pinned exact, not with a caret range
+# -- see npm/objectify-cli/README.md for why). Merge that PR to main; that is the release.
+#
+# This file is the npm trusted-publisher entry point for the CLI and platform packages --
+# do not rename it.
+#
+# macOS ENABLED again 2026-10-08. It was disabled 2026-08-27 because hosted macOS
+# runners showed 1+ hour queue times. darwin-arm64 builds on hosted `macos-14` and
+# darwin-x64 on `macos-15-intel` (`macos-13` was retired by GitHub). If queue times
+# regress, the darwin entries live in FOUR places that must move together:
+# (1) the `check` job's directory list, (2) the `build` matrix, (3)
+# `publish-platform-packages`'s BINARY_NAME map in the checksums step, (4) the same map
+# in the publish step (plus the verify list). Comment all of them out together; note
+# that npm/objectify-cli's optionalDependencies pin exact darwin versions, so a release
+# without darwin leaves macOS installs without a binary.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: publish-cli-${{ github.ref }}
+  cancel-in-progress: false
+
+# id-token: write is required for `npm publish --provenance` (Sigstore-backed
+# build provenance attestation, tying each published package back to the
+# exact workflow run / commit / repo that built it via OIDC). See
+# https://docs.npmjs.com/generating-provenance-statements
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: is a new CLI version pending?
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Look for unpublished versions
+        id: check
+        run: |
+          needed=false
+          # Keep in sync with the build matrix (see top of file).
+          for dir in objectify-cli darwin-arm64 darwin-x64 linux-x64 linux-x64-musl linux-arm64 win32-x64; do
+            name=$(node -p "require('./npm/${dir}/package.json').name")
+            version=$(node -p "require('./npm/${dir}/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on npm"
+            else
+              echo "::notice title=Unpublished version::$name@$version is not on npm yet"
+              needed=true
+            fi
+          done
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: check
+    if: needs.check.outputs.needed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: darwin-arm64
+            os: macos-14
+            binary: objectify
+          - name: darwin-x64
+            os: macos-15-intel
+            binary: objectify
+          - name: linux-x64
+            os: ubuntu-latest
+            binary: objectify
+          # Static musl binary for Alpine & co.; built on the glibc runner
+          # via the musl target (see the `target` handling in the steps below).
+          - name: linux-x64-musl
+            os: ubuntu-latest
+            binary: objectify
+            target: x86_64-unknown-linux-musl
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            binary: objectify
+          - name: win32-x64
+            os: windows-latest
+            binary: objectify.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl toolchain
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # Matrix entries without a `target` build for the host (target/release);
+      # with one, cargo emits to target/<triple>/release.
+      - name: Resolve cargo output dir
+        id: out
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            echo "flags=--target ${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+            echo "dir=target/${{ matrix.target }}/release" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=" >> "$GITHUB_OUTPUT"
+            echo "dir=target/release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: cargo build --release
+        run: cargo build --release --locked ${{ steps.out.outputs.flags }}
+
+      - name: cargo test --release
+        run: cargo test --release --locked ${{ steps.out.outputs.flags }}
+
+      - name: Stage binary + checksum for upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p staging
+          cp "${{ steps.out.outputs.dir }}/${{ matrix.binary }}" "staging/${{ matrix.binary }}"
+          # sha256sum is not available on macOS runners by default; shasum is.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "staging/${{ matrix.binary }}" | awk '{print $1}' > "staging/${{ matrix.binary }}.sha256"
+          else
+            shasum -a 256 "staging/${{ matrix.binary }}" | awk '{print $1}' > "staging/${{ matrix.binary }}.sha256"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: objectify-${{ matrix.name }}
+          path: staging
+          if-no-files-found: error
+
+  publish-platform-packages:
+    name: publish per-platform npm packages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Build checksums.json manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A BINARY_NAME=(
+            [darwin-arm64]=objectify
+            [darwin-x64]=objectify
+            [linux-x64]=objectify
+            [linux-x64-musl]=objectify
+            [linux-arm64]=objectify
+            [win32-x64]=objectify.exe
+          )
+          {
+            echo "{"
+            first=true
+            for platform in "${!BINARY_NAME[@]}"; do
+              bin="${BINARY_NAME[$platform]}"
+              sum="$(cat "artifacts/objectify-${platform}/${bin}.sha256")"
+              $first || echo ","
+              first=false
+              printf '  "%s": "%s"' "${platform}" "${sum}"
+            done
+            echo ""
+            echo "}"
+          } > checksums.json
+          cat checksums.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums-manifest
+          path: checksums.json
+          if-no-files-found: error
+
+      - name: Place binaries and publish each platform package
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A BINARY_NAME=(
+            [darwin-arm64]=objectify
+            [darwin-x64]=objectify
+            [linux-x64]=objectify
+            [linux-x64-musl]=objectify
+            [linux-arm64]=objectify
+            [win32-x64]=objectify.exe
+          )
+          for platform in "${!BINARY_NAME[@]}"; do
+            bin="${BINARY_NAME[$platform]}"
+            dest="npm/${platform}/bin/${bin}"
+            mkdir -p "npm/${platform}/bin"
+            cp "artifacts/objectify-${platform}/${bin}" "${dest}"
+            chmod +x "${dest}" || true # chmod is a no-op/irrelevant for the .exe
+            name=$(node -p "require('./npm/${platform}/package.json').name")
+            version=$(node -p "require('./npm/${platform}/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::notice title=Already published::$name@$version is already on npm; nothing to do."
+              continue
+            fi
+            echo "Publishing ${name}..."
+            (cd "npm/${platform}" && npm publish --access public --provenance)
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify platform packages are on the registry
+        id: platform-specs
+        shell: bash
+        run: |
+          {
+            echo "specs<<EOF"
+            for platform in darwin-arm64 darwin-x64 linux-x64 linux-x64-musl linux-arm64 win32-x64; do
+              node -p "const p=require('./npm/${platform}/package.json'); p.name+'@'+p.version"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify published versions are on the registry
+        uses: johnhenry/workflows/.github/actions/verify-published@v1
+        with:
+          packages: ${{ steps.platform-specs.outputs.specs }}
+
+  publish-main-package:
+    name: publish @johnhenry/objectify-cli
+    needs: publish-platform-packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # by-product: the tag + GitHub Release
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: checksums-manifest
+          path: npm/objectify-cli
+
+      - name: Publish
+        id: publish
+        # Idempotent: `npm view` exits non-zero for a version that isn't on
+        # the registry yet, which is the signal to publish.
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "tag=$PKG_NAME@$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::notice title=Already published::$PKG_NAME@$PKG_VERSION is already on npm; nothing to do."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          npm publish --access public --provenance
+          echo "published=true" >> "$GITHUB_OUTPUT"
+        working-directory: npm/objectify-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify main package is on the registry
+        if: steps.publish.outputs.published == 'true'
+        uses: johnhenry/workflows/.github/actions/verify-published@v1
+        with:
+          packages: ${{ steps.publish.outputs.tag }}
+
+      - name: Tag and GitHub Release (by-product)
+        if: steps.publish.outputs.published == 'true'
+        run: |
+          TAG="${{ steps.publish.outputs.tag }}"
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

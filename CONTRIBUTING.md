@@ -61,10 +61,10 @@ For integration tests that exercise class method execution, Deno must be on PATH
 
 ## Making a release
 
-1. Update the version in `Cargo.toml`.
-2. Add a section to `CHANGELOG.md`.
-3. Tag: `git tag v0.x.y && git push --tags`
-4. CI builds release binaries for `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, `aarch64-darwin` and attaches them to the GitHub release.
+See "Releasing" in [README.md](README.md#releasing). In short: main is the release
+branch. Bump `Cargo.toml` and add a `CHANGELOG.md` section as usual; the npm packages
+release when their version bump merges to `main` (no tags or GitHub Releases are
+created by hand -- they are by-products of the publish workflows).
 
 ## Reporting issues
 

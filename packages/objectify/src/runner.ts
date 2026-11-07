@@ -12,10 +12,30 @@ interface ClassFile {
   lang: ClassLang;
 }
 
+/**
+ * Reject class names that could escape the classes directory (path traversal)
+ * or otherwise aren't simple identifiers. Mirrors `validate_class_name` in the
+ * Rust CLI: ASCII letters, digits, `_` and `-` only. Class names become
+ * filenames joined onto `classesDir` and are interpolated into generated
+ * runner source, so this is intentionally strict.
+ */
+export function validateClassName(className: string): void {
+  if (className.length === 0) {
+    throw new Error('class name cannot be empty');
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(className)) {
+    throw new Error(
+      `invalid class name '${className}': class names may only contain letters, digits, '_', and '-' ` +
+        `(no '/', '\\', '..', or other path characters)`,
+    );
+  }
+}
+
 export function findClassFile(
   classesDir: string,
   className: string,
 ): ClassFile {
+  validateClassName(className);
   const ts = join(classesDir, `${className}.ts`);
   if (existsSync(ts)) return { path: ts, lang: 'ts' };
 
