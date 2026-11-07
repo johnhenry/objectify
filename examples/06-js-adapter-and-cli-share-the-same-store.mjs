@@ -3,15 +3,15 @@
 // and vice versa. Both talk to the same SQLite file inside .objectify/, so a
 // Node process and the `objectify` binary are two clients of one store.
 //
-// Requires: packages/objectify-js built (see examples/README.md — this needs
-// the better-sqlite3 ^13 bump from PR #3 on current Node).
+// Requires: packages/objectify built (`npm ci && npm run build --workspace
+// @johnhenry/objectify`; see examples/README.md).
 import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { Objectify } from '../packages/objectify-js/dist/index.js';
+import { Objectify } from '../packages/objectify/dist/index.js';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const releaseBin = join(repoRoot, 'target', 'release', 'objectify');

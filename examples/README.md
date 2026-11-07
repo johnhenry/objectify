@@ -42,28 +42,18 @@ Examples never touch your real `~/.objectify` or the repo's store: each one
 `objectify init`s inside its own temp directory and removes it via a `trap` on
 exit.
 
-## Node examples (objectify-js adapter)
+## Node examples (`@johnhenry/objectify` adapter)
 
 | Example | Demonstrates |
 | --- | --- |
 | [`06-js-adapter-and-cli-share-the-same-store.mjs`](06-js-adapter-and-cli-share-the-same-store.mjs) | A Node process and the Rust CLI read and write the same object interchangeably — one SQLite store, two clients. |
 | [`07-versioning-works-the-same-from-javascript.mjs`](07-versioning-works-the-same-from-javascript.mjs) | The full lifecycle — set, time-travel `get(v)`, `diff`, `rewind`, `fork`, `gc` — entirely in-process from JS. |
 
-> **Requires PR #3 (`fix/objectify-js-npm-scope-and-tests`) to be merged
-> first.** On current Node (22+/26), `packages/objectify-js` as it exists on
-> `main` does **not** work: its TypeScript compiles, but the pinned
-> `better-sqlite3 ^11` has no prebuilt binary for modern Node ABIs and fails to
-> compile from source, so the adapter cannot load. PR #3 bumps it to `^13`,
-> which fixes this. The examples are written against the adapter's public API
-> (`Objectify` / `ObjectRef`), which is identical on `main` and on PR #3's
-> branch — they were verified green against `better-sqlite3@13`.
-
-Once PR #3 is merged:
+Build the adapter from the repo root first (it is the `packages/objectify`
+npm workspace):
 
 ```sh
-cd packages/objectify-js
-npm install && npm run build     # produces dist/
-cd ../..
+npm ci && npm run build --workspace @johnhenry/objectify   # produces packages/objectify/dist/
 node examples/06-js-adapter-and-cli-share-the-same-store.mjs
 node examples/07-versioning-works-the-same-from-javascript.mjs
 ```
@@ -73,9 +63,10 @@ examples (release binary first, `cargo run` fallback).
 
 ## CI
 
-These examples are **not** wired into CI: the repository currently has no
-GitHub Actions workflows at all (no `.github/workflows/`), and adding a
-Rust build pipeline is out of scope for an examples change. If a cargo-based
-workflow is added later, a smoke step like
-`for f in examples/0*.sh; do "$f"; done` after `cargo build --release` would
-cover them.
+These examples are not wired into CI (`ci.yml` covers the Rust crate and
+`objectify-ci.yml` the adapter). To run them all locally:
+
+```sh
+cargo build --release && npm ci && npm run build --workspace @johnhenry/objectify
+for f in examples/0*.sh examples/0*.mjs; do "$f" || exit 1; done
+```

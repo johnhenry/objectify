@@ -2,13 +2,13 @@
 // The full versioned lifecycle — write, time-travel, diff, rewind, fork, gc —
 // is available in-process from JavaScript, no CLI or subprocess involved.
 //
-// Requires: packages/objectify-js built (see examples/README.md — this needs
-// the better-sqlite3 ^13 bump from PR #3 on current Node).
+// Requires: packages/objectify built (`npm ci && npm run build --workspace
+// @johnhenry/objectify`; see examples/README.md).
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
-import { Objectify } from '../packages/objectify-js/dist/index.js';
+import { Objectify } from '../packages/objectify/dist/index.js';
 
 const tmp = mkdtempSync(join(tmpdir(), 'objectify-example-'));
 try {
